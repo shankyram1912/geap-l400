@@ -73,7 +73,19 @@ def build_agent_card(public_url: str) -> AgentCard:
         ),
         version="1.0.0",
         # TODO(challenge): Advertise BOTH a 1.0 and a 0.3 JSONRPC interface on the same rpc_url so the ADK 0.3 client can parse this 1.x card.
-        supported_interfaces=[],
+        # supported_interfaces=[],
+        supported_interfaces=[
+            AgentInterface(
+                url=rpc_url,
+                protocol_binding="JSONRPC",
+                protocol_version="1.0",
+            ),
+            AgentInterface(
+                url=rpc_url,
+                protocol_binding="JSONRPC",
+                protocol_version="0.3",
+            ),
+        ],        
         default_input_modes=_CONTENT_TYPES,
         default_output_modes=_CONTENT_TYPES,
         capabilities=AgentCapabilities(streaming=False),

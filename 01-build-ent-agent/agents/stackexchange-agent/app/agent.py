@@ -65,8 +65,8 @@ graph = (
     # TODO: Add search() as a node, then add edges from START -> search -> END.
     # For help refer to https://reference.langchain.com/python/langgraph/graph/state/StateGraph/add_node
     StateGraph(State)
-    .add_node()  
-    .add_edge()
-    .add_edge()
+    .add_node("search", search)  
+    .add_edge(START, "search")
+    .add_edge("search", END)
     .compile()
 )
