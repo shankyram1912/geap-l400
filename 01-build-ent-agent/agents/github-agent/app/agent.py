@@ -37,7 +37,17 @@ GITHUB_MCP_URL = os.getenv("GITHUB_MCP_URL", "https://api.githubcopilot.com/mcp/
 GITHUB_TOOL_FILTER = ["search_repositories", "search_issues", "list_issues"]
 
 # TODO(challenge): Build an McpToolset to GITHUB_MCP_URL; PAT as Authorization: Bearer header; restrict tools to GITHUB_TOOL_FILTER (read-only). See Task 2.
-github_mcp_toolset = None
+github_mcp_toolset = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+    url=f"{GITHUB_MCP_URL}",
+    headers={
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "X-MCP-Tools": ",".join(GITHUB_TOOL_FILTER),
+        "X-MCP-Readonly": "true"
+        },
+    ),
+    tool_filter=GITHUB_TOOL_FILTER
+)
 
 root_agent = Agent(
     name="github_agent",
