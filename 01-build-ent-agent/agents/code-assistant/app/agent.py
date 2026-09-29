@@ -110,11 +110,21 @@ developer_knowledge_skill = SkillToolset(registry=skill_registry)
 
 
 # --- Remote specialists over A2A ----------------------------------------------
-# TODO(challenge): Remote ADK specialist: use_legacy=False, authed via google_authed_client(), after_agent_callback=capture_response_to_state('github_findings'). See Task 5.
-github_agent = None
+github_agent = RemoteA2aAgent(
+    name="github_agent",
+    description="Searches GitHub repositories and issues.",
+    agent_card=GITHUB_AGENT_URL,
+    httpx_client=google_authed_client(),
+    use_legacy=False,
+    after_agent_callback=capture_response_to_state("github_findings"),
+)
 
-# TODO(challenge): Non-ADK LangGraph specialist: default (standard) client (no use_legacy); still capture findings to state. See Task 5.
-stackexchange_agent = None
+stackexchange_agent = CleanQueryRemoteA2aAgent(
+    name="stackexchange_agent",
+    description="Searches Stack Exchange for programming questions and errors.",
+    agent_card=STACKEXCHANGE_AGENT_URL,
+    after_agent_callback=capture_response_to_state("stackexchange_findings"),
+)
 
 salesforce_agent = RemoteA2aAgent(
     name="salesforce_agent",
@@ -205,6 +215,13 @@ synthesizer = Agent(
     ),
 )
 
+SPECIALISTS = (
+    github_agent,
+    stackexchange_agent,
+    salesforce_agent,
+    bug_db_agent,
+    manual_search_agent,
+)
 
 # --- Workflow graph -----------------------------------------------------------
 root_agent = Workflow(
@@ -215,7 +232,12 @@ root_agent = Workflow(
         "cited answer."
     ),
     # TODO(challenge): START->query_extractor, fan out to all 5 specialists, fan them into merge (JoinNode), then merge->synthesizer. See Task 5.
-    edges=[],
+    edges=[
+        ("START", query_extractor),
+        (query_extractor, SPECIALISTS),
+        (SPECIALISTS, merge),
+        (merge, synthesizer),
+    ],
 )
 
 app = App(

@@ -41,7 +41,9 @@ class GoogleADCAuth(httpx.Auth):
 
     def _apply(self, request: httpx.Request) -> None:
         # TODO(challenge): Attach the ADC OAuth2 token to the outgoing request headers via self._creds.before_request(...); google-auth handles refresh. See Task 5.
-        raise NotImplementedError("TODO(challenge): Attach the ADC OAuth2 token to the outgoing request headers via self._creds.before_request(...); google-auth handles refresh. See Task 5.")
+        self._creds.before_request(
+            self._req, request.method, str(request.url), request.headers
+        )
 
     def sync_auth_flow(self, request):
         self._apply(request)

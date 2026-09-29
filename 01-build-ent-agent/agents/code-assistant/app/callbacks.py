@@ -38,7 +38,11 @@ def capture_response_to_state(state_key: str) -> Callable:
     async def _after_agent_callback(callback_context: CallbackContext):
         name = callback_context.agent_name
         # TODO(challenge): A RemoteA2aAgent has no output_key; copy its final text reply into state[state_key] so the synthesizer can read {state_key?}.
-        raise NotImplementedError("TODO(challenge): A RemoteA2aAgent has no output_key; copy its final text reply into state[state_key] so the synthesizer can read {state_key?}.")
-        return None
+        for event in reversed(callback_context.session.events):
+            if event.author == name and event.content and event.content.parts:
+                texts = [p.text for p in event.content.parts if p.text]
+                if texts:
+                    callback_context.state[state_key] = "\n".join(texts)
+                    return None
 
     return _after_agent_callback
