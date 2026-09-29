@@ -45,9 +45,19 @@ def main() -> None:
 
     # Reuse an existing Memory Bank with this display name if present (idempotent).
     # TODO(challenge): Idempotent: reuse the agent engine whose display_name matches, else client.agent_engines.create(...); print the resource name.
-    raise NotImplementedError(
-        "TODO(challenge): Idempotent: reuse the agent engine whose display_name matches, else client.agent_engines.create(...); print the resource name."
-    )
+    for existing in client.agent_engines.list():
+        if existing.api_resource.display_name == DISPLAY_NAME:
+            name = existing.api_resource.name
+            memory_bank_id = name.split("/")[-1]
+            print(f"Reusing existing Memory Bank: {name}")
+            print(f"MEMORY_BANK_ID={memory_bank_id}")
+            return
+            
+    created = client.agent_engines.create(config={"display_name": DISPLAY_NAME})
+    name = created.api_resource.name
+    memory_bank_id = name.split("/")[-1]
+    print(f"Created Memory Bank: {name}")
+    print(f"MEMORY_BANK_ID={memory_bank_id}")
 
 
 if __name__ == "__main__":

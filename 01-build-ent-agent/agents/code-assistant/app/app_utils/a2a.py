@@ -52,8 +52,7 @@ def user_id_meta_provider(ctx: InvocationContext, a2a_message) -> dict[str, str]
     ``A2A_USER_{context_id}``.
     """
     # TODO(challenge): Return the real end-user id in A2A metadata: {'user_id': ctx.user_id}.
-    raise NotImplementedError("TODO(challenge): Return the real end-user id in A2A metadata: {'user_id': ctx.user_id}.")
-
+    return {"user_id": ctx.user_id}
 
 # URI advertised on the agent card describing the executor extension shipped
 # by ADK. Kept as a module-level constant so callers can override or extend

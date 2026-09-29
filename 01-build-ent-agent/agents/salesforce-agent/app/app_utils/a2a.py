@@ -66,7 +66,9 @@ def _user_scoped_request_converter(
     id is forwarded (e.g., direct A2A callers).
     """
     # TODO(challenge): Convert the request
-    run_request = None
+    run_request = convert_a2a_request_to_agent_run_request(
+        request, part_converter
+    )
     forwarded_user_id = (request.metadata or {}).get("user_id")
     if forwarded_user_id:
         run_request.user_id = forwarded_user_id

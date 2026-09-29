@@ -62,7 +62,7 @@ async def generate_memories_callback(callback_context: CallbackContext) -> None:
     facts.
     """
     # TODO(challenge): Write memories each turn with add_session_to_memory().
-    None
+    await callback_context.add_session_to_memory()
   
 
 root_agent = Agent(
@@ -91,7 +91,8 @@ root_agent = Agent(
         "conversations, use them to tailor your search and answer."
     ),
     # TODOs(challenge): Add PreloadMemoryTool() to read prior memories; Add generate_memories_callback as an after_agent_callback.
-    tools=[search_salesforce],
+    tools=[search_salesforce, PreloadMemoryTool()],
+    after_agent_callback=generate_memories_callback,
 )
 
 app = App(
