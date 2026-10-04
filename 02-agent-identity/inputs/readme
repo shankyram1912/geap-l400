@@ -1,1 +1,740 @@
 https://explore.qwiklabs.com/classrooms/21327/labs/115213
+
+[FDE] Agent Identity Foundations: Challenge Lab
+schedule
+1 hour 30 minutes
+universal_currency_alt
+7 Credits
+info
+This lab may incorporate AI tools to support your learning.
+APEX013
+Lab Information
+
+Lab Manual Update	October 02, 2026
+Lab Tested Date and Time	October 02, 2026, 08:21:55
+Completion in last 24 hours	03
+Overview
+In the previous lab, Build Enterprise Agents, you built an Code Assist Agent. Two of its specialist agents had their tool credentials baked in: the github_agent on Agent Runtime read a GitHub personal access token from its .env, and the salesforce_agent on Cloud Run read a Salesforce Connected App consumer key and secret the same way.
+
+In this lab, you remove both hardcoded secrets and replace them with Agent Identity Auth Manager. The Auth Manager is a Google-managed credentials vault: you store a credential once, and your agent reads it at tool-call time using its own identity, never a secret embedded in code or an environment variable. You configure two kinds of auth provider: an API key provider for the GitHub MCP server and a 2-legged OAuth (2LO) provider for Salesforce. You will refactor each agent to resolve its credential through the ADK, redeploy, and grant each agent's identity the permission to read the credentials.
+
+By the end, neither agent contains a tool secret, and you can rotate either credential in one place without touching or redeploying the agent.
+
+Hardcoded secrets to reading credentials from Auth Manager auth providers
+
+Objectives
+In this lab, you learn how to perform the following tasks:
+
+Create auth providers for API-key and 2-legged OAuth auth providers in Agent Identity Auth Manager.
+Refactor ADK agents to resolve tool credentials through the auth manager instead of hardcoded secrets.
+Enable Agent Identity on an Agent Runtime agent and grant its SPIFFE principal access to an auth provider.
+Grant a Cloud Run agent's service account access to an auth provider, and verify both agents end to end.
+Prerequisites
+This builds on the ideas explored in Build Enterprise Agents.
+
+Important: Save your third-party credentials in a persistent local location.
+
+This lab interacts with external third-party platforms. If you plan to complete the related labs (Build Enterprise Agents and Observe and Secure a Multi-Agent System), you will reuse the same third-party credentials across those sessions.
+
+Save the following credentials:
+
+GitHub: Personal Access Token (classic) with repo and read:org scopes
+Salesforce: Connected App Consumer Key (Client ID)
+Salesforce: Connected App Consumer Secret (Client Secret)
+Salesforce: My Domain URL
+You should be comfortable with Python, gcloud, and ADK.
+
+Setup and requirements
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Google Cloud resources are made available to you.
+
+This hands-on lab lets you do the lab activities in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials you use to sign in and access Google Cloud for the duration of the lab.
+
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Note: Use an Incognito (recommended) or private browser window to run this lab. This prevents conflicts between your personal account and the student account, which may cause extra charges incurred to your personal account.
+Time to complete the lab—remember, once you start, you cannot pause a lab.
+Note: Use only the student account for this lab. If you use a different Google Cloud account, you may incur charges to that account.
+How to start your lab and sign in to the Google Cloud console
+Click the Start Lab button. If you need to pay for the lab, a dialog opens for you to select your payment method. On the right is the Lab setup pane with the following:
+
+The Open Google Cloud console button
+The temporary credentials that you must use for this lab
+Other information, if needed, to step through this lab
+In the Lab Setup section, right-click Open Google Cloud console and select Open link in new window (or alternatively right-click and select Open Link in Incognito Window if you are running the Chrome browser).
+
+The lab spins up resources, and then opens another tab that shows the Sign in page.
+
+Tip: Arrange the tabs in separate windows, side-by-side.
+
+Note: If you see the Choose an account dialog, click Use Another Account.
+If necessary, copy the Username below and paste it into the Sign in dialog.
+
+"Username"
+Copied!
+You can also find the Username in the Lab Setup pane.
+
+Click Next.
+
+Copy the Password below and paste it into the Welcome dialog.
+
+"Password"
+Copied!
+You can also find the Password in the Lab Setup pane.
+
+Click Next.
+
+Important: You must use the credentials the lab provides you. Do not use your Google Cloud account credentials.
+Note: Using your own Google Cloud account for this lab may incur extra charges.
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the Google Cloud console opens in this tab.
+
+Note: To access Google Cloud products and services, click the Navigation menu or type the service or product name in the Search field. Navigation menu icon and Search field
+Agent Identity and the Auth Manager
+A hardcoded credential is a liability. A token in a .env file is copied into the deployment, visible to anyone who can read the config, and rotated only by editing and redeploying every agent that uses it. Agent Identity Auth Manager removes the secret from that path entirely.
+
+Two ideas make this work, and it is worth separating them:
+
+Agent Identity is who the agent is. Each deployed agent can be given a strong, Google-managed identity based on the SPIFFE standard. On Agent Runtime this is a dedicated SPIFFE principal tied to the agent's resource; on Cloud Run the agent acts as its service account. Either way, the agent authenticates as itself, not as a shared secret.
+Auth Manager is what the agent is allowed to read. You store a credential (an API key, or an OAuth client id and secret) in an auth provider. Access to each auth provider is governed by IAM, so only the identities you authorize can retrieve it.
+At runtime the pieces meet inside the ADK. When your agent calls an external tool, the ADK asks the Auth Manager for the auth provider credential, the Auth Manager returns it to the agent, and the ADK injects it into the outbound request as the right header (for example, Authorization). Your code never sees the raw secret, and the auth manager refreshes OAuth tokens for you.
+
+Note: Agent Identity Auth Manager is a Preview feature. The gcloud commands in this lab use the alpha component, which is installed in Cloud Shell by default.
+Two runtimes, two identities
+Your two agents live on different runtimes, so they present different identities to the auth manager. This is the single most important idea in the lab, because it changes one concrete step: who you grant access to.
+
+Agent Runtime (GitHub agent). You enable Agent Identity at deploy time, and the platform assigns the agent a SPIFFE principal that looks like principal://agents.global.org-ORGANIZATION_ID.system.id.goog/resources/aiplatform/projects/PROJECT_NUMBER/locations/LOCATION/reasoningEngines/ENGINE_ID. You grant that principal access to the auth provider.
+Cloud Run (Salesforce agent). The agent authenticates with its Cloud Run service account through Application Default Credentials. You grant that service account access to the auth provider.
+The role you grant is the same in both cases: Agent Identity User (roles/agentidentity.user) on the auth provider, but the member string differs.
+
+Agent Runtime agent uses a SPIFFE principal and Cloud Run agent uses a service account, both granted on auth providers
+
+Task 1. Prepare your environment for Agent Identity
+In this task, you open Cloud Shell, download the agent code, set the variables you use throughout the lab, and enable the Agent Identity API.
+
+Set variables and download the agent code
+In the Cloud Shell Terminal, set the project and location variables you use throughout the lab. Set both LOCATION and REGION to REGION.
+
+gcloud auth login
+export PROJECT_ID=PROJECT_ID
+gcloud auth application-default login
+Copied!
+export LOCATION=REGION
+export REGION=REGION
+gcloud config set project ${PROJECT_ID}
+export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+export ORGANIZATION_ID=$(gcloud projects get-ancestors ${PROJECT_ID} --format=json | jq -r '.[] | select(.type=="organization") | .id')
+echo "Project: ${PROJECT_ID} (${PROJECT_NUMBER}), Org: ${ORGANIZATION_ID}, Location: ${LOCATION}, Agents: ${REGION}"
+Copied!
+Copy lab setup scripts from the project bucket using the following command:
+
+gcloud storage cp -r gs://PROJECT_ID-bucket/apex_labs .
+Copied!
+Run the setup script to deploy the baseline environment resources, update your PATH, and copy dotfiles and the agent starter code from the bucket:
+
+bash apex_labs/lab2_prereqs.sh
+export PATH="$HOME/.local/bin:$PATH"
+Copied!
+In the Cloud Shell Terminal, create the agent's .env file for github-agent using the following commands:
+
+cd ~/agents/github-agent
+cat << EOF > .env
+GOOGLE_CLOUD_PROJECT=$PROJECT_ID
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=True
+MODEL=gemini-3.5-flash
+GITHUB_MCP_URL=https://api.githubcopilot.com/mcp/
+GITHUB_AUTH_PROVIDER_URI=projects/$PROJECT_ID/locations/$LOCATION/authProviders/github-mcp-auth-provider
+EOF
+Copied!
+Verify that agents-cli is installed, which you use to inspect and redeploy the agents:
+
+agents-cli info
+Copied!
+Enable the Agent Identity API
+The auth manager is served by the Agent Identity API (agentidentity.googleapis.com), and the Agent Runtime side of Agent Identity additionally relies on the newer Agent Identity API and workload identity federation token exchange. Enable all of them now.
+
+Use gcloud services enable to enable the required Google Cloud APIs for Agent Identity and the Auth Manager: iam.googleapis.com agentidentity.googleapis.com aiplatform.googleapis.com agentidentitycredentials.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
+
+Note: Your lab account already has the Agent Identity Admin role, which lets you create auth providers, plus Project IAM Admin so you can grant each agent access to its provider. In your own organization, an administrator grants these roles.
+Click Check my progress to verify the objective.
+Enable the Agent Identity API
+
+Task 2. Create the GitHub API-key auth provider
+In this task, you move the GitHub personal access token out of the agent and into an API-key auth provider. An API-key provider is the right choice here: the GitHub MCP server authenticates with a single static token, and the agent calls it using its own identity with no end user involved.
+
+Note: There are better, more secure ways to authenticate with GitHub, such as using GitHub Apps or OAuth 2.0. However, for the purposes of this lab, we are using API keys to demonstrate how Agent Identity Auth Manager works.
+Store your read-only GitHub token from the previous lab in a shell variable so it does not appear in your command history.
+
+read -rs GITHUB_PAT && echo   # Press Enter
+# Paste the token, then press Enter again.
+Copied!
+Construct the gcloud alpha agent-identity auth-providers create command to create an auth provider named github-mcp-auth-provider using your $PROJECT_ID and $LOCATION env variables. Pass your GitHub Personal Access Token (${GITHUB_PAT}) as an api-key argument. Run the command in Cloud Shell Terminal.
+
+Verify that the auth provider exists and that its state is ENABLED.
+
+gcloud alpha agent-identity auth-providers list \
+  --project=${PROJECT_ID} \
+  --location=${LOCATION}
+Copied!
+Save the auth provider's full resource name; the agent references it by this name.
+
+export GITHUB_AUTH_PROVIDER_URI="projects/${PROJECT_ID}/locations/${LOCATION}/authProviders/github-mcp-auth-provider"
+echo ${GITHUB_AUTH_PROVIDER_URI}
+Copied!
+Click Check my progress to verify the objective.
+Create the GitHub API-key auth provider
+
+Task 3. Move the GitHub agent onto the auth provider
+In this task, you replace the GitHub agent's starter code with a version already refactored to read its token from the auth provider, deploy it to Agent Runtime with Agent Identity enabled, and grant the agent's SPIFFE principal permission to use the auth provider.
+
+Note: This task deploys the GitHub agent with a small shell script, deploy_with_identity.sh, instead of agents-cli deploy --agent-identity. As of the current agents-cli/adk releases, that flag combines identity provisioning and code deployment into a single API request that Vertex AI Agent Runtime rejects — every such deploy fails with "failed to start and cannot serve traffic." deploy_with_identity.sh performs the same two steps agents-cli does (provision the agent's identity, then deploy the code) as two separate requests, which the backend accepts. You still use agents-cli for the Salesforce agent later in this lab — this issue is specific to Agent Runtime with Agent Identity.
+Review how the agent authenticates today
+In the Cloud Shell Editor, open ~/agents/github-agent/agent/agent.py.
+Notice that the toolset hardcodes the token into an Authorization header built from GITHUB_TOKEN. The secret travels with the deployment. You replace this whole project with an Agent-Identity-ready version that resolves the credential through the auth manager at call time instead.
+Replace the agent's starter code
+Replace the entire content of ~/agents/github-agent/agent/agent.py with the following code. The changes from what you saw a moment ago are focused: the token read is gone, the ADK's GcpAuthProvider is registered, the toolset is given a GcpAuthProviderScheme, and a header_provider maps the resolved credential into the Authorization header.
+
+You will complete the TODO items in the code in the following steps.
+
+import os
+
+from dotenv import load_dotenv
+from google.adk.agents import Agent
+from google.adk.apps import App
+from google.adk.auth.credential_manager import CredentialManager
+from google.adk.integrations.agent_identity import GcpAuthProvider, GcpAuthProviderScheme
+from google.adk.models import Gemini
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
+from google.genai import types
+
+load_dotenv()
+
+MODEL = os.environ["MODEL"]
+GITHUB_MCP_URL = os.getenv("GITHUB_MCP_URL", "https://api.githubcopilot.com/mcp/")
+# Full resource name of the API-key auth provider you created in Task 2.
+GITHUB_AUTH_PROVIDER_URI = os.environ["GITHUB_AUTH_PROVIDER_URI"]
+
+# Only expose the read tools this agent needs.
+GITHUB_TOOL_FILTER = ["search_repositories", "search_issues", "list_issues"]
+
+# TODO 1: register the Google Cloud auth provider so the
+# CredentialManager can resolve the auth provider credential using
+# the agent's own identity. This runs once at import.
+raise NotImplementedError("Register the auth provider")
+
+# TODO 2: create the auth scheme that names which auth provider the ADK
+# should resolve before the tool runs, e.g.
+#     github_auth_scheme = GcpAuthProviderScheme(name=GITHUB_AUTH_PROVIDER_URI)
+raise NotImplementedError("Create github_auth_scheme")
+
+
+def github_mcp_toolset() -> McpToolset:
+    """MCP toolset for the GitHub server, authenticated via auth manager."""
+    toolset = None
+
+    def github_header_provider(readonly_ctx) -> dict[str, str]:
+        if not toolset or not toolset.get_auth_config():
+            return {}
+        auth_config = toolset.get_auth_config()
+        cred = None
+        if readonly_ctx and hasattr(readonly_ctx, "get_credential"):
+            cred = readonly_ctx.get_credential(auth_config.credential_key)
+        if not cred:
+            cred = auth_config.exchanged_auth_credential
+        if not cred or not cred.http:
+            return {}
+        token = None
+        if cred.http.credentials and cred.http.credentials.token:
+            token = cred.http.credentials.token
+        elif cred.http.additional_headers:
+            token = cred.http.additional_headers.get(
+                "X-API-Key"
+            ) or cred.http.additional_headers.get("X-GOOG-API-KEY")
+        if token:
+            return {"Authorization": f"Bearer {token}"}
+        return {}
+
+    # TODO 3: Build and return the McpToolset as github_mcp_toolset.
+    # Pass the connection params 
+    # (StreamableHTTPConnectionParams(url=GITHUB_MCP_URL)),
+    # the github_auth_scheme, the GITHUB_TOOL_FILTER, and the
+    # header_provider. No PAT / hardcoded Authorization header.
+    raise NotImplementedError("Build and return the McpToolset")
+
+
+root_agent = Agent(
+    name="github_agent",
+    model=Gemini(
+        model=MODEL,
+        retry_options=types.HttpRetryOptions(attempts=3),
+    ),
+    description=(
+        "Specialized assistant for GitHub: searches repositories, issues, and "
+        "pull requests via the GitHub MCP server."
+    ),
+    instruction=(
+        "You are a specialized assistant for interacting with GitHub. "
+        "Use the provided tools to search for repositories, find issues, and "
+        "retrieve pull-request information, then answer with what you find. "
+        "Be concise and cite the repository names / issue numbers you used."
+    ),
+    tools=[github_mcp_toolset()],
+)
+
+app = App(root_agent=root_agent, name="app")
+Copied!
+Following this API key example in the Agent Identity auth manager documentation, complete TODO 1 in the code you pasted to register the Google Cloud auth provider to resolve the auth provider credential.
+
+Complete TODO 2 in the code to create the auth scheme using GcpAuthProviderScheme using the URI of the auth provider you created in the previous task. That auth provider URI should now be saved in the GITHUB_AUTH_PROVIDER_URI variable.
+
+Complete TODO 3 in the code you pasted above to build and return an McpToolset. It should use StreamableHTTPConnectionParams pointed to your GITHUB_MCP_URL. It should use the auth_scheme you defined in the previous step and a tool_filter set to GITHUB_TOOL_FILTER . Set the header_provider parameter to github_header_provider.
+
+In the Cloud Shell Editor, open ~/agents/github-agent/agent/main.py. This is what serves the agent over the A2A protocol.
+
+Note: Rather than agents-cli's usual generated FastAPI app, or the native ADK entrypoint (adk api_server --a2a), this project builds its A2A agent card dynamically at startup with ADK's AgentCardBuilder, the same mechanism agents-cli uses internally. This sidesteps a current ADK bug where adk api_server --a2a's static-agent-card loading path (fast_api.py) raises an UnboundLocalError and never registers any A2A route. main.py is otherwise a small, plain FastAPI app with no other scaffolding.
+Understand how the token reaches the tool
+In this case, the GitHub agent talks to a remote MCP server, which expects the credential to arrive as an HTTP header on every tool call. So we need to wire the token in three parts:
+
+CredentialManager.register_auth_provider(GcpAuthProvider()) teaches the ADK how to talk to the auth manager. It runs once at import.
+GcpAuthProviderScheme(name=GITHUB_AUTH_PROVIDER_URI), passed to the McpToolset as auth_scheme, tells the ADK which auth provider to resolve before the tool runs. The ADK exchanges the agent's identity for the stored API key and holds it in the toolset's auth_config.
+header_provider=github_header_provider is the bridge. Just before each MCP request the ADK calls this function; you read the resolved credential out of the auth_config and return {"Authorization": "Bearer <token>"}. The MCP server receives an ordinary bearer token, and the raw secret never appears in your code or configuration.
+The key idea: for an MCP tool you cannot receive the credential as a function argument, so you intercept the outgoing request with a header_provider and attach the token yourself.
+
+Deploy with Agent Identity enabled
+Run the deploy script. This assigns the agent a SPIFFE principal that it uses to read the auth provider.
+
+cd ~/agents/github-agent
+chmod 777 ./deploy_with_identity.sh
+REGION=REGION A2A_APP_NAME=agent AUTH_PROVIDER_NAME=github-mcp-auth-provider DISPLAY_NAME=github-agent-v2 ./deploy_with_identity.sh
+Copied!
+This takes 5-10 minutes and prints its progress as it goes, so there is no separate status-polling command to run. Under the hood it does exactly what agents-cli deploy --agent-identity is supposed to do, just as two separate API calls instead of one: it first creates the Reasoning Engine with only its identity set, letting the platform cleanly provision the SPIFFE principal; grants that principal the baseline roles it needs to run; and only then deploys your code, in an update that never touches the identity again. When it finishes it prints the Effective identity and Reasoning Engine ID you need next.
+
+Note: If the deployment fails or crashes, re-running deploy_with_identity.sh will reuse the existing reasoning engine associated with github-agent-v2. To retry with a clean deployment, either delete the failed reasoning engine in the Google Cloud console or specify a new display name in the deploy command (for example, DISPLAY_NAME=github-agent-v3).
+Copy the Effective identity value from the script's output and set it as a variable, prefixed with principal://.
+
+export GITHUB_AGENT_IDENTITY="principal://PASTE_THE_EFFECTIVE_IDENTITY_HERE"
+Copied!
+Note: The identity has the form agents.global.org-ORGANIZATION_ID.system.id.goog/resources/aiplatform/projects/PROJECT_NUMBER/locations/REGION/reasoningEngines/ENGINE_ID — the script prints it bare; the principal:// prefix above is what IAM binding commands expect.
+Copy the Reasoning Engine ID value from the script's output and build the agent's URL.
+
+export GITHUB_ENGINE_ID="PASTE_THE_REASONING_ENGINE_ID_HERE"
+export GITHUB_AGENT_URL="https://${REGION}-aiplatform.googleapis.com/v1/projects/${PROJECT_NUMBER}/locations/${REGION}/reasoningEngines/${GITHUB_ENGINE_ID}"
+echo ${GITHUB_AGENT_URL}
+Copied!
+Grant the agent's identity access to the auth provider
+TODO: Grant the principal the Agent Identity User role on the GitHub auth provider (github-mcp-auth-provider) by constructing a gcloud alpha agent-identity auth-providers add-iam-policy-binding command. The member should be the value of GITHUB_AGENT_IDENTITY which you saved earlier.
+
+For local development and testing, additionally provide your user identity access to the auth provider. In the below command, replace EMAIL_ADDRESS with this Qwiklab's user email.
+
+gcloud alpha agent-identity auth-providers add-iam-policy-binding github-mcp-auth-provider \
+--project=${PROJECT_ID} \
+--location=${LOCATION} \
+--role="roles/agentidentity.user" \
+--member="user:EMAIL_ADDRESS"
+Copied!
+Test the agent
+Send a query to the deployed agent and confirm it returns a repository result without any token in its configuration.
+
+agents-cli run --url ${GITHUB_AGENT_URL} --mode a2a --app-name agent "List all my open GitHub issues"
+Copied!
+Note: --app-name agent is required here because agents-cli run --url normally reads the app name from a local agents-cli-manifest.yaml, which this project does not have (it was not scaffolded with agents-cli). Passing it explicitly skips that lookup; it must match main.py's APP_NAME.
+Note: IAM changes take a minute or two to take effect. If the first call fails to authenticate, wait and try again.
+Confirm the result. The agent returns your open issues, just as it did in the previous lab, but what happened underneath is different. The deployed agent held no token. When your query arrived, the ADK used the agent's SPIFFE identity to fetch the API key from the auth provider, attached it as the Authorization header, and called the GitHub MCP server. The credential lived in the auth manager the whole time and was read just in time for the call.
+
+Note: This also means access is now governed by IAM. If you removed the binding you granted above, this same request would fail with a permission error instead of returning data, which confirms the secret is no longer baked into the agent.
+Click Check my progress to verify the objective.
+Grant the GitHub agent's identity access to the auth provider
+
+Task 4. Create the Salesforce 2LO auth provider
+In this task, you create the second auth provider, this time for Salesforce. The Salesforce agent authenticates to the Salesforce REST/SOSL API with an app-only client-credentials grant. The app acts as itself, with no signed-in user, so the right auth provider is 2-legged OAuth (2LO). You store the Connected App consumer key, secret, and token endpoint in the auth provider, and the auth manager performs the grant and refreshes the token for you.
+
+Set your Salesforce values from the previous lab. SF_DOMAIN is your org's My Domain host. The consumer key and secret come from the Connected App's client-credentials flow.
+
+export SF_DOMAIN="YOUR_SALESFORCE_MY_DOMAIN"   # e.g. yourorg.my.salesforce.com
+export SF_CLIENT_ID="YOUR_CONSUMER_KEY"
+read -rs SF_CLIENT_SECRET && echo   # paste the consumer secret, then press Enter
+Copied!
+Construct another gcloud alpha agent-identity auth-providers create command. This time, you'll create a 2-legged OAuth (2LO) auth provider named salesforce-2lo-auth-provider. You will again use your $PROJECT_ID and $LOCATION env variables. This time, instead of an api-key argument, you'll pass your $SF_CLIENT_ID, $SF_CLIENT_SECRET, and a token endpoint of https://${SF_DOMAIN}/services/oauth2/token as arguments to the corresponding parameters beginning with --two-legged-oauth. Run the command in Cloud Shell Terminal.
+
+Verify that both auth providers now appear and that the new one is ENABLED.
+
+gcloud alpha agent-identity auth-providers list \
+  --project=${PROJECT_ID} \
+  --location=${LOCATION}
+Copied!
+Save the auth provider's full resource name.
+
+export SALESFORCE_AUTH_PROVIDER_URI="projects/${PROJECT_ID}/locations/${LOCATION}/authProviders/salesforce-2lo-auth-provider"
+echo ${SALESFORCE_AUTH_PROVIDER_URI}
+Copied!
+Click Check my progress to verify the objective.
+Create the Salesforce 2LO auth provider
+
+Task 5. Update the Salesforce agent to use the auth provider
+In this task, you refactor the Salesforce agent to obtain its access token from the auth provider, redeploy it to Cloud Run, and grant its service account permission to use the auth provider.
+
+Review how the agent authenticates today
+In the previous lab this agent handled Salesforce authentication entirely on its own:
+
+Open ~/agents/salesforce-agent/app/salesforce_client.py. Its authenticate method holds the Connected App consumer key and secret and POSTs them to the Salesforce token endpoint to obtain an app access token. Its other methods (search_files, download_version_text) run the SOSL Files search and already take an access_token argument.
+Open ~/agents/salesforce-agent/app/tools.py. Notice it calls authenticate and caches the returned token in session state, refreshing it when it expires and re-authenticating on a 401.
+You move only the authentication to the auth manager. The auth provider performs the client-credentials grant and refreshes the token, so you delete authenticate (and the client's credential fields) and let the ADK inject the token, but you keep the client's SOSL search and download logic. One Salesforce-specific detail: the raw token response carries an instance_url, but the auth manager returns only a standard token, so the client now derives its REST base URL from your My Domain (SALESFORCE_DOMAIN) — which is why that one variable stays while the client id and secret go.
+
+Update the agent code
+Replace the entire contents of ~/agents/salesforce-agent/app/tools.py with the following. You will complete the TODO items in the code in the following steps:
+
+import os
+
+from google.adk.auth.auth_credential import AuthCredential
+from google.adk.auth.auth_tool import AuthConfig
+from google.adk.auth.credential_manager import CredentialManager
+from google.adk.integrations.agent_identity import (
+    GcpAuthProvider,
+    GcpAuthProviderScheme,
+)
+from google.adk.tools.authenticated_function_tool import AuthenticatedFunctionTool
+
+from app.salesforce_client import SalesforceClient
+
+# Full resource name of the 2LO auth provider you created in the auth provider task.
+SALESFORCE_AUTH_PROVIDER_URI = os.environ["SALESFORCE_AUTH_PROVIDER_URI"]
+
+# TODO 1: register the Google Cloud auth provider, then build the
+# AuthConfig that names the 2LO auth provider. Salesforce's client-credentials
+# grant takes no scope. This can be done as:
+#     CredentialManager.register_auth_provider(GcpAuthProvider())
+#     salesforce_auth_config = AuthConfig(
+#         auth_scheme=GcpAuthProviderScheme(name=SALESFORCE_AUTH_PROVIDER_URI)
+#     )
+raise NotImplementedError("Register provider + build salesforce_auth_config")
+
+
+def _extract_token(credential: AuthCredential) -> str | None:
+    """Pulls the access token out of the credential Auth Manager resolved."""
+    if not credential:
+        return None
+    if credential.oauth2 and credential.oauth2.access_token:
+        return credential.oauth2.access_token
+    if (
+        credential.http
+        and credential.http.credentials
+        and credential.http.credentials.token
+    ):
+        return credential.http.credentials.token
+    if credential.http and credential.http.additional_headers:
+        h = credential.http.additional_headers
+        return (
+            h.get("X-API-Key")
+            or h.get("X-GOOG-API-KEY")
+            or h.get("Authorization", "").replace("Bearer ", "")
+            or None
+        )
+    return None
+
+
+def build_search_salesforce(client: SalesforceClient):
+    """Builds the Salesforce search tool bound to a configured client.
+
+    Args:
+        client: A credential-free ``SalesforceClient`` (My Domain + API version).
+
+    Returns:
+        The ``search_salesforce`` ``AuthenticatedFunctionTool`` for the agent.
+    """
+
+    # TODO 2: a function tool receives the resolved credential as an
+    # injected argument. Add a `credential: AuthCredential` parameter to this
+    # function's signature (alongside query), then replace the
+    # `access_token = None` line below with access_token = _extract_token(credential).
+    def search_salesforce(query: str) -> dict:
+        """Searches the company's Salesforce document library (Files).
+
+        Runs a SOSL full-text search across every file the application can read;
+        the caller does not need to know a file name or folder.
+
+        Args:
+            query: The search term or issue description.
+
+        Returns:
+            A dict with a 'status' key; on success, 'data' holds matching
+            documents (each a {'name', 'url', 'snippet'} dict). On failure,
+            'error_message' explains why.
+        """
+        access_token = None  # TODO 2: access_token = _extract_token(credential)
+        if not access_token:
+            return {
+                "status": "error",
+                "error_message": "Salesforce auth failed: no token from Auth Manager.",
+            }
+
+        try:
+            documents = client.search_files(access_token, query)
+        except Exception as e:  # surface any search failure to the model
+            return {
+                "status": "error",
+                "error_message": f"Salesforce search failed: {e}",
+            }
+
+        return {
+            "status": "success",
+            "query": query,
+            "data": documents,
+        }
+
+    # TODO 3: return an AuthenticatedFunctionTool that wraps
+    # search_salesforce with salesforce_auth_config, so the ADK resolves the
+    # auth provider and injects the credential before each call, e.g.
+    #     return AuthenticatedFunctionTool(
+    #         func=search_salesforce, auth_config=salesforce_auth_config
+    #     )
+    raise NotImplementedError("Return the AuthenticatedFunctionTool")
+Copied!
+Use the comments for TODO 1 in the code you pasted to register the Google Cloud auth provider to resolve the auth provider credential and build the AuthConfig required for Salesforce.
+
+Complete TODO 2 by modifying the search_salesforce() function signature to accept the credential argument and extract the token using the _extract_token helper function as indicated by the comments.
+
+Complete TODO 3 by returning an AuthenticatedFunctionTool wrapping the search function and the auth config, as guided by the comments.
+
+build_search_salesforce(client) now returns an AuthenticatedFunctionTool. ADK resolves the auth provider named in the AuthConfig, injects the resulting AuthCredential, and your function reads the token from it and calls the Salesforce REST/SOSL API. The token cache, the 401 re-auth, and the authenticate() call are gone.
+
+Replace the entire contents of ~/agents/salesforce-agent/app/agent.py with the following. The client id/secret reads are gone; the client is now built with only the My Domain (no credentials) and passed to build_search_salesforce, which returns the authenticated tool. The memory features are unchanged.
+
+ import os
+
+ from dotenv import load_dotenv
+ from google.adk.agents import Agent
+ from google.adk.agents.callback_context import CallbackContext
+ from google.adk.apps import App
+ from google.adk.models import Gemini
+ from google.adk.tools.preload_memory_tool import PreloadMemoryTool
+ from google.genai import types
+
+ from app.salesforce_client import SalesforceClient
+ from app.tools import build_search_salesforce
+
+ load_dotenv()
+
+ MODEL = os.environ["MODEL"]
+ # My Domain host (used to build the REST base URL). The Connected App consumer
+ # key/secret are gone: Auth Manager holds them in the 2LO auth provider and resolves
+ # the token at tool-call time using the agent's own identity.
+ SALESFORCE_DOMAIN = os.environ["SALESFORCE_DOMAIN"]
+
+ salesforce_client = SalesforceClient(
+     domain=SALESFORCE_DOMAIN,
+     api_version=os.environ.get("SALESFORCE_API_VERSION"),
+ )
+ search_salesforce = build_search_salesforce(salesforce_client)
+
+
+ async def generate_memories_callback(callback_context: CallbackCont
+Copied!
+Edit ~/agents/salesforce-agent/app/salesforce_client.py. You keep the client's SOSL search and download logic; the module's helper functions and imports above the class are unchanged. Replace the entire SalesforceClient class with the version below. The changes are focused: __init__ drops the consumer key and secret and keeps only the My Domain and API version (deriving the REST base instance_url from the domain); authenticate() is deleted; and search_files / download_version_text no longer take an instance_url argument — they use self.instance_url.
+
+class SalesforceClient:
+    """auth provider to search Salesforce Files (no credentials of its own).
+
+    Holds only the org's My Domain and REST API version. The app access token is
+    resolved by Auth Manager and passed in per call; the REST instance URL is
+    derived from the My Domain (``https://< domain>``).
+    """
+
+    def __init__(
+        self,
+        domain: str,
+        api_version: str | None = None,
+    ):
+        # Accept either a bare host or a full URL for the org's My Domain.
+        self.domain = domain.replace("https://", "").replace("http://", "").strip("/")
+        self.api_version = api_version or _DEFAULT_API_VERSION
+        # With My Domain / Enhanced Domains, the My Domain host is a valid API
+        # instance URL. Auth Manager does not surface Salesforce's instance_url,
+        # so the REST base is derived here instead of from the token response.
+        self.instance_url = f"https://{self.domain}"
+
+    def download_version_text(
+        self, access_token: str, version_id: str, name: str
+    ) -> str:
+        """Downloads a file version's bytes and extracts plain text.
+
+        Args:
+            access_token: An app access token resolved by Auth Manager.
+            version_id: The ``ContentVersion`` id.
+            name: The file name (its extension selects the text extractor).
+
+        Returns:
+            The extracted text, or ``""`` for unsupported file types.
+        """
+        resp = requests.get(
+            f"{self.instance_url}/services/data/{self.api_version}"
+            f"/sobjects/ContentVersion/{version_id}/VersionData",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=_CONTENT_TIMEOUT_SECONDS,
+        )
+        _raise_for_status(resp)
+        return _extract_text(name, resp.content)
+
+    def search_files(self, access_token: str, query: str) -> list:
+        """Searches Salesforce Files (ContentVersion) via SOSL full-text search.
+
+        Uses ``GET /services/data/vXX.X/search`` with a SOSL ``FIND`` so it spans
+        every file the app can read, restricted to the latest version of each.
+        The top ``_ENRICH_TOP_K`` hits are enriched with a text excerpt built from
+        the downloaded file bytes (SOSL itself returns no content snippet).
+
+        Args:
+            access_token: An app access token resolved by Auth Manager.
+            query: The user's search terms.
+
+        Returns:
+            A list of ``{'name', 'url', 'snippet'}`` dicts for matching files.
+        """
+        resp = requests.get(
+            f"{self.instance_url}/services/data/{self.api_version}/search",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"q": _build_sosl(query)},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        _raise_for_status(resp)
+
+        documents = []
+        for i, record in enumerate(resp.json().get("searchRecords", [])):
+            version_id = record.get("Id")
+            document_id = record.get("ContentDocumentId")
+            name = _file_name(record.get("Title"), record.get("FileExtension"))
+            snippet = ""
+            # Only download + excerpt the top hits to bound latency/cost.
+            if i < _ENRICH_TOP_K and version_id:
+                try:
+                    text = self.download_version_text(access_token, version_id, name)
+                    snippet = _build_excerpt(text, query)
+                except Exception:
+                    # Enrichment is best-effort; a download/parse failure just
+                    # leaves an empty snippet (the title still helps the model).
+                    snippet = ""
+            documents.append(
+                {
+                    "name": name,
+                    "url": (
+                        f"{self.instance_url}/lightning/r/ContentDocument/{document_id}/view"
+                        if document_id
+                        else self.instance_url
+                    ),
+                    "snippet": snippet,
+                }
+            )
+        return documents
+Copied!
+Open ~/agents/salesforce-agent/.env. Delete the SALESFORCE_CLIENT_ID and SALESFORCE_CLIENT_SECRET lines, keep SALESFORCE_DOMAIN (the client still needs it to build the REST base URL), and add the auth provider resource name.
+
+SALESFORCE_AUTH_PROVIDER_URI=projects/PROJECT_ID/locations/REGION/authProviders/salesforce-2lo-auth-provider
+Copied!
+Add the Agent Identity integration to the agent's dependencies, exactly as you did for the GitHub agent, and refresh the lockfile.
+
+cd ~/agents/salesforce-agent
+sed -i 's/google-adk\[gcp\]/google-adk[gcp,agent-identity]/' pyproject.toml
+uv lock
+Copied!
+Understand how the token reaches the tool
+Removing the hardcoded secret changed two files: In tools.py you registered the auth provider, declared an AuthConfig that names the 2LO auth provider, and wrapped the tool in an AuthenticatedFunctionTool; the token now comes from an injected credential instead of client.authenticate(). In agent.py you built the client with no credentials (only the My Domain) and passed it to build_search_salesforce. Because the Salesforce search is a plain REST call from your own function, the ADK can hand the credential straight to your code — there is no header plumbing.
+
+Here is how the access token reaches Salesforce on each tool call:
+
+During import: tools.py runs CredentialManager.register_auth_provider(GcpAuthProvider()) and builds salesforce_auth_config, which names your 2LO auth provider.
+Wiring: agent.py creates a credential-free SalesforceClient(domain=...) and calls build_search_salesforce(client). The factory returns an AuthenticatedFunctionTool that wraps search_salesforce, with client captured in the closure.
+The model calls the tool with only query. The AuthenticatedFunctionTool intercepts the call and asks the ADK to resolve the auth provider, using the agent's own identity (its Cloud Run service account).
+Auth Manager returns an AuthCredential holding a fresh, app-only access token. The ADK injects it as the credential argument — the model never sees it.
+Your function reads the token with _extract_token(credential) and passes it to the client's search_files, which runs the SOSL query and downloads the top hits to build content snippets.
+The client calls Salesforce with an Authorization: Bearer header, against the REST base derived from your My Domain, and returns the results. No consumer key or secret ever touched your code, and the token is refreshed for you.
+Compare this to the GitHub agent, where the tool is a remote MCP server and you had to attach the token yourself with a header_provider. It is the same auth provider mechanism with two delivery styles: an argument for function tools, a header for MCP tools.
+
+Salesforce 2LO flow: Auth Manager returns a refreshed token, then the tool function calls the Salesforce REST/SOSL API
+
+Redeploy to Cloud Run
+Redeploy the agent to Cloud Run.
+
+cd ~/agents/salesforce-agent
+agents-cli deploy --project ${PROJECT_ID} --region ${REGION} \
+  --no-confirm-project --no-wait \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Poll until the deployment reports success.
+
+agents-cli deploy --status
+Copied!
+When the deployment finishes, agents-cli prints the Cloud Run service URL and the service account the service runs as. Note the difference from Task 3: there is no --agent-identity flag and no SPIFFE principal. A Cloud Run service authenticates to Google Cloud as its service account, so that service account is the identity you authorize next.
+
+Grant the service account access to the auth provider
+Unlike the GitHub agent, the Salesforce agent runs on Cloud Run, so it reads the auth provider as its service account, not as a SPIFFE principal.
+
+Read the service account the Cloud Run service runs as.
+
+export SF_SA=$(gcloud run services describe salesforce-agent --region ${REGION} \
+  --format='value(spec.template.spec.serviceAccountName)')
+echo ${SF_SA}
+Copied!
+Grant that service account the Agent Identity User (roles/agentidentity.user) role on the Salesforce auth provider (salesforce-2lo-auth-provider) by constructing a gcloud alpha agent-identity auth-providers add-iam-policy-binding command. The member should begin with a prefix of serviceAccount: followed by the value of ${SF_SA} which you set earlier.
+
+Note: If the agent cannot reach the auth manager after this grant, confirm the service account also has roles/serviceusage.serviceUsageConsumer on the project, which is required to call the Agent Identity API.
+For local development and testing, additionally provide your user identity access to the auth provider. In the below command, replace EMAIL_ADDRESS with this Qwiklab's user email.
+
+gcloud alpha agent-identity auth-providers add-iam-policy-binding salesforce-2lo-auth-provider \
+--project=${PROJECT_ID} \
+--location=${LOCATION} \
+--role="roles/agentidentity.user" \
+--member="user:EMAIL_ADDRESS"
+Copied!
+Test the agent
+If Identity-Aware Proxy (IAP) is enabled on the service, disable it first. IAP puts a Google sign-in in front of the service, which blocks the identity token that agents-cli run sends, so the call cannot reach the agent.
+
+gcloud run services update salesforce-agent --region=${REGION} --no-iap
+Copied!
+Read the Cloud Run service URL and send a query over A2A. agents-cli run supplies the identity token for you.
+
+export SF_URL=$(gcloud run services describe salesforce-agent --region ${REGION} --format='value(status.url)')
+agents-cli run --url ${SF_URL} --mode a2a "Search for any architecture decision records about timeouts."
+Copied!
+Troubleshooting: If the agent returns an empty answer, the token exchange with Salesforce likely failed. Auth Manager resolves the credential before your tool function runs, so a bad auth provider value surfaces as an error rather than the tool's own message. Check the Cloud Run logs for CONNECTOR_AUTH_TOKEN_EXCHANGE_ERROR and confirm the auth provider's client id, secret, and token endpoint (and that the Connected App's client-credentials run-as user can read the files).
+Confirm the result. The agent returns matching documents from Salesforce Files. As with the GitHub agent, the deployed Salesforce agent holds no Salesforce credentials. The ADK used the Cloud Run service account to fetch a fresh access token from the 2LO auth provider and called the Salesforce API with it. Both specialists now authenticate to their external tools through the auth manager, with no secrets in their code.
+
+Click Check my progress to verify the objective.
+Deploy the salesforce-agent Cloud Run service
+
+Congratulations!
+In this lab, you removed hardcoded tool secrets from two agents and put them behind Agent Identity Auth Manager. You created an API-key auth provider for the GitHub MCP server and a 2-legged OAuth provider for Salesforce, refactored each agent to resolve its credential through the ADK, and authorized each agent's identity to use its auth provider: a SPIFFE principal for the Agent Runtime agent and a service account for the Cloud Run agent. Both credentials now live in one governed place, where you can rotate or revoke them without editing or redeploying an agent.
+
+Appendix: verify the supporting grants
+Your agents also need permission to write telemetry and call the model. These grants were established in the previous lab; the steps below let you confirm they are present. If a command shows no binding, the previous lab's setup did not complete in this project.
+
+Confirm the GitHub agent's identity can call the model.
+
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:${GITHUB_AGENT_IDENTITY}" \
+  --format="value(bindings.role)"
+Copied!
+Look for roles/aiplatform.user, roles/logging.logWriter, and roles/cloudtrace.agent.
+
+Confirm the Salesforce service account has the same telemetry and model roles.
+
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:${SF_SA}" \
+  --format="value(bindings.role)"
+Copied!
+Note: In Task 5 you disabled IAP on the Cloud Run service so that agents-cli run could reach it. If your organization requires IAP for browser access to the service, re-enable it with --iap and reach the agent through the IAP-authorized path instead of the CLI.
+Next steps / Learn more
+Agent Identity auth manager overview
+Authenticate using an API key with auth manager
+Authenticate using 2-legged OAuth with auth manager
+Authenticate using 3-legged OAuth (user-delegated) with auth manager
+Google Cloud training and certification
+...helps you make the most of Google Cloud technologies. Our classes include technical skills and best practices to help you get up to speed quickly and continue your learning journey. We offer fundamental to advanced level training, with on-demand, live, and virtual options to suit your busy schedule. Certifications help you validate and prove your skill and expertise in Google Cloud technologies.
+
+Copyright 2026 Google LLC. All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.

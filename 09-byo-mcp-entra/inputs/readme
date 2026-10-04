@@ -1,1 +1,263 @@
 https://explore.qwiklabs.com/classrooms/21327/labs/115220
+
+[FDE] Gemini Enterprise BYO-MCP: SharePoint Integration
+schedule
+2 hours
+universal_currency_alt
+7 Credits
+info
+This lab may incorporate AI tools to support your learning.
+L400-APEX005
+Scenario
+Cymbal Group, a multinational services company, is rolling out Gemini Enterprise to improve knowledge discovery, operational efficiency, and cross-platform collaboration.
+
+Currently, Cymbal Group is undergoing a massive digital transformation to modernize how its global teams interact with internal operational playbooks, cross-department marketing initiatives, and critical financial ledgers. Because these assets are currently spread across fragmented Microsoft SharePoint team sites and OneDrive repositories, employees are forced to manually toggle between multiple applications to find information, look up technical runbooks, or log updates.
+
+To solve this, Cymbal wants to integrate their entire Microsoft Graph ecosystem directly into Gemini Enterprise. As a Cloud Architect at Cymbal Group, your task is to deploy an enterprise-grade Model Context Protocol (MCP) connector. This should allow Cymbal’s Gemini Enterprise AI agents to autonomously navigate, read, and safely modify documents, while enforcing strict corporate governance through native Action Approval workflows.
+
+Your challenge
+As an AI Infrastructure Engineer, you need to configure, deploy, and securely link a custom Microsoft Graph MCP connector to Gemini Enterprise. To succeed, you must meet the following objectives:
+
+Configure identity and security delegation within Microsoft Entra ID.
+Deploy the MCP Server container to Google Cloud Run to expose the required API endpoints.
+Register and authenticate the custom MCP server as an enterprise data store within the Google Cloud Console.
+Link the data store to Gemini Enterprise and activate the correct read/write action permissions.
+Topics tested:
+Build and deploy a custom MCP server as a Google Cloud Run service.
+Configure and register a custom MCP data source in Gemini Enterprise.
+Secure the connection using OAuth 2.0 client credentials.
+Enable 12 read-and-write actions for SharePoint and OneDrive.
+Register and test the data store with Gemini Enterprise prompts.
+Setup and requirements
+Prerequisites and account hygiene
+Because all participants share a single Microsoft 365 tenant with elevated privileges (Cloud Application Administrator), strict account hygiene and tenant isolation rules apply:
+
+Browser Isolation: You must sign in to both Google Cloud and Microsoft Entra ID using a clean Incognito / InPrivate browser window to prevent credential caching and session collisions with your corporate or personal accounts.
+Rotating Weekly Credentials: Your assigned Microsoft 365 / Entra ID credentials are temporary and strictly bound to the current week's cohort. Access is valid for one week only, after which credentials are revoked, active sessions are terminated, and the tenant environment is recycled.
+First-Login Setup: On your first sign-in to the Microsoft Entra Admin Center, you will be prompted to complete a mandatory password reset and may be required to configure Multi-Factor Authentication (MFA). Keep your updated password accessible for the remainder of the lab.
+⚠️ Account Usage & Compliance Policy:
+
+Do not perform any extra administrative tasks, modify tenant-wide security policies, or run unauthorized Microsoft Graph API calls outside the instructions in this lab manual.
+
+Unapproved administrative actions or high-frequency API polling can trigger automated Microsoft platform fraud detection and Smart Lockouts, which will lock out your account and disrupt the shared tenant for the entire cohort.
+Pre-provisioned SharePoint environment
+All SharePoint team sites (configured as public within the organization) and sample test documents (Cymbal_Helix_Upgrade.docx, Cymbal_Orion_Enablement.pptx, etc.) are already pre-created and populated for you.
+
+Do NOT create new SharePoint sites or upload test files from scratch.
+Locate your assigned Microsoft Entra credentials (shared via classroom chat) and verify that you can access the pre-provisioned SharePoint sites below before starting:
+Cymbal Group Marketing
+Cymbal Group Finance
+Cymbal Group Operations
+Note: If you encounter any issues logging into the Microsoft Entra Admin Center or accessing the pre-provisioned SharePoint sites above, please notify in the cohort chat immediately before the lab begins.
+
+⚠️ Important:
+Use an Incognito / Private Browsing window for all logins.
+Click Start Lab to receive your temporary Google Cloud credentials.
+Labs are timed and cannot be paused.
+⚠️ Important:
+
+Do not end the lab until you have completed all tasks.
+
+If you end the lab:
+All provisioned Google Cloud resources will be automatically deleted.
+You will need to start from scratch.
+Systems access overview
+This lab requires access to the following environments:
+
+Google Cloud (Lab credentials)
+Access: https://console.cloud.google.com/
+Credentials: Provided after clicking "Start Lab"
+These credentials are temporary and valid only for the duration of the lab
+Microsoft Entra (Shared tenant credentials)
+Access: https://entra.microsoft.com/
+Credentials: Assigned weekly cohort account shared with you (requires password reset on first login)
+Start the lab
+Click Start Lab.
+Wait for the lab environment to initialize.
+In the Lab Details panel, note the following:
+Username
+Password
+Time remaining
+Right-click Open Google Cloud console and select Open in Incognito window.
+Sign in to Google Cloud
+On the sign-in page, click Use another account (if prompted).
+Enter the provided Username.
+Click Next.
+Enter the provided Password.
+Click Next.
+After signing in:
+
+Accept the terms and conditions.
+Skip all optional setup steps.
+Important notes
+Use only the lab-provided Google Cloud credentials.
+Do not use your personal Google Cloud account (this may incur charges).
+Task 1. Register the application in Microsoft Entra ID
+To allow the MCP connector to securely access Cymbal's corporate documents, you must register a Microsoft Entra ID OAuth application. Because all participants share a single directory with Cloud Application Administrator privileges, you must strictly isolate your application registration.
+
+Strict Non-Interference Warning:
+
+You have visibility over other participants' app registrations in this tenant. Do NOT modify, regenerate secrets, change redirect URIs, or delete any application that does not belong to you. Doing so will immediately break that participant's lab.
+Mandatory Naming Convention:
+
+You must prefix your app registration name with your assigned LDAP / username prefix (for example, <your-ldap>-cymbal-ge-mcp-app) so that your application is uniquely identifiable in the shared directory.
+In the Microsoft Entra Admin Center, register a new application with the following settings:
+
+Name: <your-ldap>-cymbal-ge-mcp-app (Replace <your-ldap> with your assigned username/LDAP prefix, e.g., jsmith-cymbal-ge-mcp-app)
+
+Redirect URI:
+
+https://vertexaisearch.cloud.google.com/oauth-redirect
+Copied!
+Add the following Microsoft Graph Delegated API permissions and click Grant admin consent for [Tenant]:
+
+Files.ReadWrite.All
+Sites.ReadWrite.All
+User.Read
+Navigate to Certificates & secrets and create a new Client secret.
+
+Copy and save the following credentials immediately for your environment configuration:
+
+Application (client) ID (Verify this matches your <your-ldap>- prefixed app)
+Directory (tenant) ID
+Client Secret Value
+Task 2. Configure the Gemini Enterprise app
+Enable the necessary APIs
+In the Google Cloud console, select your project.
+In the search bar at the top, type Agent Platform, and select it from the results.
+On the Overview page, click Enable APIs.
+Click Enable.
+Create a Gemini Enterprise app
+In this challenge, you must configure a Gemini Enterprise app and enable authentication.
+
+Create a Gemini Enterprise app using the required configuration values.
+Configure the authentication settings for the global location.
+Enable Google Identity as the identity provider.
+Use the following configuration values during setup:
+
+Parameter	Value
+App name	gemini-enterprise-app
+App ID	gemini-enterprise-app
+Location	global
+Identity provider	Google Identity
+After completing the configuration, verify the following:
+The Gemini Enterprise app has been created successfully.
+Authentication is enabled for the global location using Google Identity.
+Click Check my progress to verify the objective.
+AT ID: 1 - Configure the Gemini Enterprise app
+
+Task 3. Build and deploy the MCP server to Cloud Run
+Next, you set up the environment variables and deploy the pre-configured Node.js MCP server code to Google Cloud Run.
+
+Open the Cloud Shell and run the following commands to download and unzip the pre-configured Node.js MCP server code.
+gcloud storage cp gs://"bucket-name"-bucket/sharepoint-mcp-server.zip .
+Copied!
+  unzip sharepoint-mcp-server.zip
+  cd sharepoint-mcp-server
+Copied!
+Update the .env file in the root directory of your project using the credentials from your <your-ldap>-cymbal-ge-mcp-app Entra app registration and the pre-provisioned SharePoint root instance URL:
+  MS_GRAPH_TENANT_ID="your-entra-tenant-id"
+  MS_GRAPH_CLIENT_ID="your-entra-client-id"
+  MS_GRAPH_CLIENT_SECRET="your-entra-client-secret"
+  SHAREPOINT_INSTANCE_URL="https://googlecorp.sharepoint.com"
+Copied!
+💡 SharePoint Instance & Site Lookup:
+
+Because the SharePoint team sites (Cymbal Group Marketing, Cymbal Group Finance, and Cymbal Group Operations) and their document libraries are pre-provisioned in the shared tenant, look up and use your assigned SharePoint root instance URL (e.g., https://googlecorp.sharepoint.com) or assigned site URL rather than creating a new SharePoint site.
+Note: Please make sure you are using the client secret value from your own prefixed app registration, not the Secret ID.
+Make the deployment script executable and run it to deploy the server container to Cloud Run:
+  chmod +x deploy.sh
+  ./deploy.sh
+Copied!
+Once the deployment finishes, copy the live Cloud Run Service URL from the terminal output (e.g., https://sharepoint-mcp-server-850431687571.us-central1.run.app).
+Click Check my progress to verify the objective.
+AT ID: 2 - Build and deploy the MCP server to Cloud Run
+
+Task 4. Configure the data store and enable MCP actions
+Now, register the deployed Cloud Run instance as a custom Model Context Protocol data source in Gemini Enterprise.
+
+In the Google Cloud Console, navigate to Gemini Enterprise -> Data stores -> Create data store.
+
+Type MCP in the search bar and select Custom MCP Server.
+
+Fill out the Connection Profile exactly as outlined below (replace {YOUR_TENANT_ID} with your Entra Tenant ID):
+
+Parameter	Configuration
+MCP Server URL	https://sharepoint-mcp-server-xxxxxxxxxxxx.us-central1.run.app/mcp
+Authorization URL	https://login.microsoftonline.com/{YOUR_TENANT_ID}/oauth2/v2.0/authorize
+Auth URL Parameters	&access_type=offline&prompt=consent
+Token URL	https://login.microsoftonline.com/{YOUR_TENANT_ID}/oauth2/v2.0/token
+Client ID	Enter Application (client) ID from your <your-ldap>- Entra app
+Client Secret Value	Enter Client Secret Value from your <your-ldap>- Entra app
+Scopes	https://graph.microsoft.com/.default
+Note: If you receive the error AADSTS900144: The request body must contain the following parameter: 'scope'., update Auth URL Parameters to &access_type=offline&prompt=consent&scope=https://graph.microsoft.com/.default.
+Note: Please make sure you are using the client secret value, not the ID.
+
+Also, you can copy the MCP server URL from the deployment script's terminal output in the previous step. Make sure to append /mcp to the end of the URL.
+Click Login to authenticate using your assigned weekly Microsoft 365 cohort account (ensure this popup opens within your clean Incognito/InPrivate session), grant permissions, and click Continue.
+
+Name the Data Connector Cymbal Universal Data Connector, and click Create.
+
+Wait a few minutes for initialization. Once ready, click on your new MCP data store and navigate to the Actions tab.
+
+By default, all actions are disabled. Select all read and write actions and click Enable actions.
+
+Click Check my progress to verify the objective.
+AT ID: 3 - Configure the data store and enable MCP actions
+
+Task 5. Link the connector to a Gemini Enterprise app
+Now, bind your newly authorized data store to your active Gemini Enterprise application environment.
+
+Click Check my progress to verify the objective.
+AT ID: 4 - Link the Connector to a Gemini Enterprise app
+
+Verification
+Open your application URL (https://vertexaisearch.cloud.google.com/home/cid/...).
+
+Click the Connector icon inside the chat bar, authorize the server, and test the capabilities using the natural language prompts in the section that follows.
+
+Read actions (Instant, interruption-free streaming)
+1. Search SharePoint sites
+
+Allows the AI agent to discover relevant corporate SharePoint sites across your organization based on keywords or department names.
+
+Search for SharePoint sites related to Cymbal Group Operations.
+Copied!
+2. List document libraries
+
+Retrieves all available document repositories and drives within a specific SharePoint team site.
+
+List all document libraries in my Cymbal Group Finance site.
+Copied!
+3. List library items (files & folders)
+
+Explores the directory structure, listing all files, subfolders, and metadata within a specific drive or folder location.
+
+List all files and folders inside my Documents library in the Cymbal Group Finance site.
+Copied!
+4. Get file metadata
+
+Retrieves detailed properties for any specific file, including creation date, last modified time, file size, and web URLs.
+
+Get the metadata and last modified time for Cymbal_Helix_Upgrade.docx
+Copied!
+5. Read document content
+
+Streams clean, extracted text directly to the AI agent from Word documents (.docx), PowerPoint presentations (.pptx), Excel spreadsheets (.xlsx), and text files for instant summarization or analysis.
+
+Read the text content of Cymbal_Helix_Upgrade.docx and give me a 3-bullet summary.
+Copied!
+6. Get secure download URL
+
+Generates temporary, secure, authenticated direct download URLs for any document in your repository.
+
+Generate a direct download URL for my SharePoint presentation titled: Cymbal_Orion_Enablement.docx
+Copied!
+Congratulations!
+You have successfully demonstrated your ability to configure and register a custom MCP connector for Gemini Enterprise to equip it with advanced SharePoint capabilities.
+
+Manual Last Updated September 18, 2026
+
+Lab Last Tested September 18, 2026
+
+Copyright 2026 Google LLC. All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.

@@ -1,2 +1,980 @@
 https://explore.qwiklabs.com/classrooms/21327/labs/115212
 
+[FDE] Build Enterprise Agents
+schedule
+3 hours
+universal_currency_alt
+15 Credits
+info
+This lab may incorporate AI tools to support your learning.
+APEX012
+Lab Information
+
+Lab Manual Last Updated Date	October 02, 2026
+Last Tested Date and Time	October 02, 2026, 04:09:19
+Completion in Last 24 Hours	02
+Overview
+In this lab, you build Code Assist, an internal system that researches production errors for engineers. It is a heterogeneous multi-agent system: its specialist agents are written in different frameworks and run on different Google Cloud runtimes, yet they cooperate as one system by speaking the Agent2Agent (A2A) protocol.
+
+You build the system up one specialist at a time, and the story gets easier at each step:
+
+You start with the Agent Development Kit (ADK) and see how quickly agents-cli deploys an agent to Agent Runtime.
+You learn that any framework works over A2A by deploying a LangGraph agent to Cloud Run.
+You go faster still with vibecoding: you generate a BigQuery vector-search agent from a prompt using the Antigravity coding agent, then deploy it to GKE.
+You compose the specialists as A2A nodes in an ADK 2.0 graph workflow, and test the whole system locally.
+You deploy the root to Agent Runtime and register it in Gemini Enterprise.
+You extend the running system with one more specialist.
+The specialists:
+
+Agent	Framework	Runtime	How you build it
+github_agent	ADK + MCP	Agent Runtime	configure + agents-cli deploy
+stackexchange_agent	LangGraph + a2a-sdk	Cloud Run	build image + gcloud run deploy
+bq-agent	ADK + BigQuery	GKE	generate with Antigravity + agents-cli deploy
+manual_search	local ADK tools	Agent Runtime (in the root)	Vertex AI Search datastore + official Google docs (Developer Knowledge MCP, via a Skill Registry skill)
+salesforce_agent	ADK + Salesforce REST/SOSL	Cloud Run	configure + agents-cli deploy
+code_assistant (root)	ADK 2.0 Workflow	Agent Runtime	orchestrate + agents-cli deploy
+System diagram
+
+This is an advanced lab. It assumes you are comfortable with Python, gcloud, containers, and the basics of ADK and multi-agent systems. The default model is gemini-3.5-flash.
+
+Objectives
+In this lab, you learn how to perform the following tasks:
+
+Configure and deploy ADK agents to Agent Runtime, Cloud Run, and GKE with agents-cli.
+Make agents from different frameworks interoperate over the A2A protocol.
+Generate a working agent from a prompt with the Antigravity coding agent.
+Orchestrate specialists as A2A nodes in an ADK 2.0 graph workflow and register the system in Gemini Enterprise.
+Give an agent long-term, per-user memory with Vertex AI Memory Bank.
+Setup and requirements
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Google Cloud resources are made available to you.
+
+This hands-on lab lets you do the lab activities in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials you use to sign in and access Google Cloud for the duration of the lab.
+
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Note: Use an Incognito (recommended) or private browser window to run this lab. This prevents conflicts between your personal account and the student account, which may cause extra charges incurred to your personal account.
+Time to complete the lab—remember, once you start, you cannot pause a lab.
+Note: Use only the student account for this lab. If you use a different Google Cloud account, you may incur charges to that account.
+How to start your lab and sign in to the Google Cloud console
+Click the Start Lab button. If you need to pay for the lab, a dialog opens for you to select your payment method. On the right is the Lab setup pane with the following:
+
+The Open Google Cloud console button
+The temporary credentials that you must use for this lab
+Other information, if needed, to step through this lab
+In the Lab Setup section, right-click Open Google Cloud console and select Open link in new window (or alternatively right-click and select Open Link in Incognito Window if you are running the Chrome browser).
+
+The lab spins up resources, and then opens another tab that shows the Sign in page.
+
+Tip: Arrange the tabs in separate windows, side-by-side.
+
+Note: If you see the Choose an account dialog, click Use Another Account.
+If necessary, copy the Username below and paste it into the Sign in dialog.
+
+"Username"
+Copied!
+You can also find the Username in the Lab Setup pane.
+
+Click Next.
+
+Copy the Password below and paste it into the Welcome dialog.
+
+"Password"
+Copied!
+You can also find the Password in the Lab Setup pane.
+
+Click Next.
+
+Important: You must use the credentials the lab provides you. Do not use your Google Cloud account credentials.
+Note: Using your own Google Cloud account for this lab may incur extra charges.
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the Google Cloud console opens in this tab.
+
+Note: To access Google Cloud products and services, click the Navigation menu or type the service or product name in the Search field. Navigation menu icon and Search field
+Prerequisites
+The Salesforce agent you build in Task 7 searches an organization's document library, which you host in Salesforce Files. Before you start the lab, create a free Salesforce Developer Edition account and upload the lab's documents to it.
+
+Do this ahead of time. Salesforce sends a verification email and takes a few minutes to provision your org, so complete these steps before your lab session where possible.
+Important: Save your third-party credentials in a persistent local location.
+
+This lab interacts with external third-party platforms. If you plan to complete the related labs (Agent Identity Foundations and Observe and Secure a Multi-Agent System), you will reuse the same third-party credentials across those sessions.
+
+Save the following credentials:
+
+GitHub: Personal Access Token (classic) with repo and read:org scopes
+Salesforce: Connected App Consumer Key (Client ID)
+Salesforce: Connected App Consumer Secret (Client Secret)
+Salesforce: My Domain URL
+Access the Remote Browser (optional)
+If corporate network, browser, or device security policies restrict downloading or uploading external files on your local workstation, you can use the pre-provisioned sandboxed Remote Browser session.
+
+Open the Remote Browser session URL in a new browser tab:
+
+REMOTE_BROWSER_URL
+Copied!
+Open the Chrome browser and navigate to the Salesforce Developer Edition signup page.
+
+Complete the Salesforce signup and document upload steps below inside this remote browser session without downloading files to your local workstation.
+
+Create a Salesforce Developer Edition account
+A Developer Edition org is a free, full-featured Salesforce environment. You use it to host the documents the Salesforce agent searches.
+
+Open the Salesforce Developer signup page in your browser (or inside the Remote Browser session).
+
+Complete the signup form with your details, then select Sign me up.
+
+Salesforce Developer Edition signup form
+
+Review and accept the Master Subscription Agreement and Terms of Use.
+
+Open the activation email from Salesforce (subject "Welcome to Salesforce: Verify your account") and select Verify Account.
+
+Set a password that meets the Salesforce requirements (at least 8 characters, with one letter and one number), choose a security question, then select Change Password.
+
+You are now signed in to your Developer Edition org.
+
+Upload the documents to Salesforce Files
+Next, copy the lab's documents from Cloud Storage and upload them to Salesforce Files so the Salesforce agent can find them.
+
+Remote Browser tip: If you are using the Remote Browser session, the Salesforce documents are already extracted directly on the Desktop. You can skip steps 1–3 and upload the files directly from the Desktop.
+In Cloud Shell, copy the ZIP file from the Cloud Storage bucket.
+
+gcloud storage cp gs://l400-academy-data-science/l400-apex-001/Salesforce_documents.zip .
+Copied!
+Download the ZIP file. You can use the Cloud Shell Editor window and right-click on the file to download it, or from the Cloud Shell toolbar, select More (⋮) > Download, then enter the path to the file.
+
+Extract the documents on your machine.
+
+In your Salesforce org, open the App Launcher (⋮⋮⋮), search for Files, and select Files.
+
+Select Upload Files, then select the documents you downloaded.
+
+Uploading documents in Salesforce Files
+
+Note: Confirm every document appears in Salesforce Files before you continue. Salesforce indexes uploaded files for search asynchronously, so allow a few minutes before the agent can find them.
+Heterogeneous agents and the A2A protocol
+Real enterprises don't build every agent the same way. One team ships an ADK agent, another already has a LangGraph service, a third wants a managed runtime, and a fourth needs Kubernetes. A useful platform lets those agents cooperate without forcing everyone onto one framework or one runtime. That is what this lab demonstrates, and the Agent2Agent (A2A) protocol is what makes it possible.
+
+A2A gives every agent a common contract, regardless of how it is built:
+
+Agent card: a small JSON document at a well-known path (/.well-known/agent-card.json or /a2a/app/.well-known/agent-card.json) that describes the agent's skills and its endpoint. A caller reads the card, then sends messages to the endpoint. The caller never needs to know the callee's framework.
+Transport: the actual calls use JSON-RPC over HTTP. Because the contract is HTTP + JSON, an ADK agent, a LangGraph server, and a managed engine all look the same to a caller.
+A2A has variations you will meet in this lab, and knowing them explains several choices you make:
+
+The ADK A2A extension. When an ADK agent calls another ADK agent, it can opt into an ADK-specific extension (use_legacy=False) that carries richer event data. When it calls a non-ADK server, it uses plain, standard A2A. You will see both in the root agent.
+Protocol versions. The a2a-sdk library changed its card shape between the 0.3 and 1.x releases. ADK currently pins the older 0.3 client, so a server built on a2a-sdk 1.x must advertise a 0.3-compatible card or the ADK client cannot parse it. The Stack Exchange agent does exactly this in Task 3.
+These variants come together in one comparison. You apply this when you wire the root to the specialists in Task 5:
+
+Dimension	What it means	In this lab
+Agent card	JSON at a well-known path describing skills + endpoint	Every specialist publishes one
+Transport	JSON-RPC over HTTP for the calls	All use JSON-RPC
+Standard vs ADK extension	ADK agents can opt into the ADK A2A extension for richer event data	github, salesforce, bq-agent use it; stackexchange does not
+Version (1.x vs 0.3)	a2a-sdk major versions differ in card shape	stackexchange serves 1.x with a 0.3-compatible card
+Serving style	self-served (a2a-sdk) vs scaffolded (agents-cli/ADK)	stackexchange self-serves; github, salesforce, bq-agent are scaffolded
+Keep one idea in mind throughout: a specialist is just an agent card at a URL. That is why you can mix frameworks and runtimes freely, and why extending the system later (Task 7) is so easy.
+
+Authentication across runtimes
+Because the specialists live on different runtimes, the root agent authenticates to each one differently. This is not incidental complexity; it reflects how each runtime secures traffic, and it drives real steps in this lab.
+
+An A2A call, per-host authentication, and authorization
+Every A2A call resolves the target's agent card, then sends a message; the credential the caller must attach depends on the target's runtime, and the target still checks whether the caller is authorized before it returns 200 OK.
+
+Agent Runtime (GitHub, root): endpoints are always authenticated. A caller presents a Google OAuth access token. Inside a deployed agent, the Agent Platform SDK's Application Default Credentials (ADC) provide that token as the agent's runtime service account automatically. Locally, ADC resolves to your user credentials. The same code works in both places.
+Cloud Run (Stack Exchange, Salesforce): services can be public or private. A public service needs no token. A private service needs a Google identity token whose audience is the service URL, and the caller needs roles/run.invoker.
+GKE (Bug DB): authentication depends on how you expose the service. A public load balancer needs no token.
+There is one more layer: even with a valid token, the caller's identity must be authorized to invoke the target. A missing token yields 401 Unauthorized; a valid token without permission yields 403 Permission Denied. In Task 6 you grant the root's service account permission to invoke the GitHub agent for exactly this reason.
+
+Design choice: Agent Runtime also offers an agent identity mode (a dedicated SPIFFE identity brokered by Agent Gateway). This lab uses the simpler, well-understood model instead: the runtime service account plus an ADC access token and an explicit IAM grant. It works identically on your machine and when deployed, which keeps the focus on A2A rather than identity infrastructure.
+Beyond authenticating each call, a production platform also governs which agents may talk to which. That is what the agent-identity mode enables: Agent Gateway authenticates every agent by its agent identity (a SPIFFE X.509 identity, with mutual TLS and DPoP for end-to-end proof) and enforces IAM allow/deny policies before traffic reaches the target. Source agents are principals, target services are Agent Registry resources, and an allow policy grants roles/iap.egressor on the target (optionally narrowed with CEL conditions).
+
+Agent Gateway policy enforcement Agent Gateway authenticates each agent's identity and enforces IAM allow/deny before traffic reaches the target. This lab uses the lighter runtime-service-account model; Agent Gateway is the heavier production path for governing a fleet.
+
+Task 1. Set up your environment
+In this task, you launch Cloud Shell, download the lab code, install agents-cli, and create the Vertex AI Search datastore that grounds the root agent's local manual_search branch.
+
+With your Google Cloud console window selected, open Cloud Shell by pressing the G key and then the S key on your keyboard. Alternatively, you can click the Activate Cloud Shell button (Activate Cloud Shell) in the upper right of the Cloud console.
+
+Click Continue.
+
+When prompted to authorize Cloud Shell, click Authorize.
+
+In the Cloud Shell Terminal, set the project and region variables you use throughout the lab.
+
+gcloud auth login
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1        
+gcloud config set project ${PROJECT_ID}
+Copied!
+Download the lab's agent code from the lab bucket to your home directory.
+
+gcloud storage cp -r gs://PROJECT_ID-bucket/agents .
+mkdir ~/.vscode
+gcloud storage cp -r gs://PROJECT_ID-bucket/settings.json ~/.vscode/    
+Copied!
+Install the agents-cli tool and update your PATH.
+
+export PATH="${HOME}/.local/bin:${PATH}"
+uv tool install google-agents-cli
+agents-cli info
+Copied!
+Set up Application Default Credentials (ADC) for the client libraries. gcloud auth login only authenticates the CLI, but the agents-cli deploys use Python client libraries, which need ADC.
+
+gcloud auth application-default login
+Copied!
+Note: Follow the prompt to authorize. Without ADC, later deploys can fail with service account info is missing 'email' field. If that happens mid-lab, re-run this command; if it persists, click Restart in the Cloud Shell toolbar and try again.
+In the upper right corner of the Cloud Shell Terminal panel, click the Open in new window button Open in new window button.
+
+Run the following command in the Cloud Shell terminal to open the Cloud Shell Editor to your home directory. It takes a few seconds to open:
+
+cloudshell workspace ~
+Copied!
+Close any additional tutorial or Gemini panels that appear on the right side of the screen to save more of your window for your code editor.
+Throughout the rest of this lab, you can work in this window as your IDE with the Cloud Shell Editor and Cloud Shell Terminal.
+Create the code-manuals search datastore
+The root agent's local manual_search branch queries a Vertex AI Search datastore of internal code manuals. The lab bucket already contains the manual documents; here you create the datastore and import them.
+
+Create the datastore with the ID code-manuals-datastore.
+
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  -H "X-Goog-User-Project: ${PROJECT_ID}" \
+  "https://discoveryengine.googleapis.com/v1/projects/${PROJECT_ID}/locations/global/collections/default_collection/dataStores?dataStoreId=code-manuals-datastore" \
+  -d '{"displayName":"Code manuals","industryVertical":"GENERIC","solutionTypes":["SOLUTION_TYPE_SEARCH"],"contentConfig":"CONTENT_REQUIRED"}'
+Copied!
+Import the manual documents from the lab bucket into the datastore.
+
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  "https://discoveryengine.googleapis.com/v1/projects/${PROJECT_ID}/locations/global/collections/default_collection/dataStores/code-manuals-datastore/branches/0/documents:import" \
+  -d '{"reconciliationMode":"INCREMENTAL","gcsSource":{"inputUris":["gs://'${PROJECT_ID}'-bucket/code_manuals/*"],"dataSchema":"content"}}'
+Copied!
+Note: The datastore provisions in the background. If the import returns 403 PERMISSION_DENIED, wait about 10 seconds and run the command again. Ingestion takes a few minutes; you can continue with the next task while it completes.
+Click Check my progress to verify the objective.
+Create the code-manuals datastore
+
+Task 2. Deploy the GitHub agent with ADK and agents-cli
+In this task, you deploy your first specialist. The GitHub agent is a standard ADK agent whose only tool is a hosted MCP (Model Context Protocol) server for GitHub. You deploy it to Agent Runtime and see how little stands between ADK code and a running, A2A-enabled agent.
+
+Why Agent Runtime for this agent? Agent Runtime is Google's managed runtime for agents. You hand it your code; it builds the container, runs it, serves the A2A card and JSON-RPC endpoint, and manages sessions. It is the fastest path from ADK code to a running agent, which is why the lab starts here.
+
+Why MCP instead of hand-written tools? MCP lets an agent use tools hosted by a separate server. The GitHub tools live on a remote MCP endpoint (https://api.githubcopilot.com/mcp/), so there is no tool code to write, package, or maintain in this agent. This also means the agent behaves the same locally and when deployed, because the tools are always remote.
+
+Create a GitHub personal access token
+The GitHub agent's only tool is a hosted GitHub MCP server, which authenticates with a personal access token (PAT). The agent uses only read tools, so a read-only token is enough. In this subtask, you create a classic PAT.
+
+Go to GitHub personal access tokens (classic).
+
+Select Generate new token, then Generate new token (classic).
+
+For Note, type code-assist-lab, and choose an Expiration.
+
+Under Select scopes, select repo and read:org.
+
+Select Generate token, then copy the ghp_... value. This is your GITHUB_PERSONAL_ACCESS_TOKEN.
+
+Important: Copy the token now. GitHub shows it only once. Save this token in a secure location, as it will be needed in the next labs.
+Configure the agent
+In the Cloud Shell Terminal, create the agent's .env file.
+
+cd ~/agents/github-agent
+cat << EOF > .env
+GOOGLE_CLOUD_PROJECT=PROJECT_ID
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=True
+MODEL=gemini-3.5-flash
+GITHUB_PERSONAL_ACCESS_TOKEN=PASTE_YOUR_TOKEN
+GITHUB_MCP_URL=https://api.githubcopilot.com/mcp/
+EOF
+Copied!
+Open ~/agents/github-agent/.env in the editor and replace PASTE_YOUR_TOKEN with the token you created. Leave the other values as they are.
+
+Tip: .env is a hidden file. In the Cloud Shell Editor, enable View > Toggle Hidden Files to see it.
+Configure the agent to use the token and connect to the GitHub MCP Server
+In the editor, open ~/agents/github-agent/app/agent.py.
+
+Complete the TODO to assign a value to github_mcp_toolset. This should be set to an McpToolset which uses StreamableHTTPConnectionParams to connect to the GITHUB_MCP_URL. Headers should be configured to use your PAT stored as GITHUB_TOKEN as an authorization header. You should also use a tool_filter to restrict the tools to those included in the GITHUB_TOOL_FILTER list.
+
+
+Using a tool_filter is a good habit. It narrows the agent's capabilities to the minimum it needs, which improves safety, latency, and the model's tool-selection accuracy.
+
+Deploy the agent
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+Deploy the agent to Agent Runtime. The command reads the variables from .env and injects them, excluding GOOGLE_CLOUD_PROJECT because --project sets it.
+
+agents-cli deploy --project ${PROJECT_ID} --no-confirm-project --no-wait \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+Poll until the deployment reports success (this takes 5-10 minutes).
+
+agents-cli deploy --status
+Copied!
+Note: A2A is enabled automatically (is_a2a: true in agents-cli-manifest.yaml), so the deployed agent serves its agent card and JSON-RPC without any extra flag. A transient code 13 INTERNAL on the first attempt usually succeeds on retry.
+Record the printed Agent Card URL in an environment variable, and persist it to ~/.bashrc so it survives a new Cloud Shell tab. You use it later as GITHUB_AGENT_URL.
+
+export GITHUB_AGENT_URL="PASTE_THE_AGENT_CARD_URL_HERE"
+echo "export GITHUB_AGENT_URL='${GITHUB_AGENT_URL}'" >> ~/.bashrc
+Copied!
+Test the agent
+Call the deployed agent's A2A card. Agent Runtime is always authenticated, so you pass a bearer token. The card is the A2A contract: it advertises the agent's skills and its JSON-RPC endpoint.
+
+curl -sS -H "Authorization: Bearer $(gcloud auth print-access-token)" "${GITHUB_AGENT_URL}" | python3 -m json.tool
+Copied!
+Derive the agent's run endpoint from the card URL, and print it to confirm it resolved.
+
+export GITHUB_ENGINE_URL=$(echo "${GITHUB_AGENT_URL}" | sed -E 's#/reasoningEngines/v1/#/v1/#; s#/api/.*##')
+echo "${GITHUB_ENGINE_URL}"
+Copied!
+Send a message to the deployed agent, and confirm it returns a repository result. Because this agent runs on Agent Runtime, use --mode adk; agents-cli detects your credentials automatically.
+
+agents-cli run --url "${GITHUB_ENGINE_URL}" --mode adk "Find the google/adk-python repository"
+Copied!
+Why not the playground? agents-cli playground and agents-cli run without --url run the agent locally from your source. Passing --url targets the deployed agent instead, which is what you verify here.
+Click Check my progress to verify the objective.
+Deploy the GitHub agent to Agent Runtime
+
+Task 3. Add a LangGraph specialist over A2A
+In this task, you deploy a specialist that is not an ADK agent. The Stack Exchange agent is a LangGraph graph wrapped in a small a2a-sdk server, deployed to Cloud Run. To the rest of the system it is just another A2A card, which is the whole point: the framework behind a card doesn't matter to the caller.
+
+Why this matters. This is the payoff of A2A. Your organization can keep its existing LangGraph (or any other framework) services and still plug them into an ADK orchestrator, as long as each one publishes an A2A card. You do not rewrite working agents to join the system.
+
+Why Cloud Run? This agent is a plain container that serves HTTP on a port. Cloud Run runs exactly that with managed HTTPS and scale-to-zero, so it is a natural fit for a self-hosted A2A server that isn't an ADK/agents-cli project.
+
+Update the agent
+In the Cloud Shell Editor, open ~/agents/stackexchange-agent/app/agent.py.
+Notice that the search() function runs a Stack Exchange search with no LLM. The search is deterministic, so this graph will need no model. That's a reminder that an "agent" node can be plain code.
+Complete the TODO in the file to add the search node to the graph and connect the edges from START -> search -> END.
+Update the a2a-sdk server
+In the Cloud Shell Editor, open ~/agents/stackexchange-agent/app/server.py.
+
+Notice that supported_interfaces is currently an empty list.
+
+Update the supported_interfaces list to include an AgentInterface for both a 1.0 and a 0.3 protocol version, each for the same url of rpc_url and protocol_binding of JSONRPC.
+
+Why the dual-version card? This server is built on a2a-sdk 1.x, whose default card moves the endpoint into a new field that an older client can't read. ADK currently pins the a2a-sdk 0.3 client, so if this card advertised only the 1.x shape, the root agent could not parse it. Advertising a 0.3-compatible interface (and enabling the 0.3 compatibility layer on the server) lets the ADK client consume it. This is the most common real-world A2A interop issue: a version mismatch between the caller's client and the callee's server.
+Build the image and deploy to Cloud Run
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+Build the container image with Cloud Build and push it to Artifact Registry.
+
+cd ~/agents/stackexchange-agent
+gcloud builds submit --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/agents/stackexchange-agent:latest
+Copied!
+Deploy the image to Cloud Run. Public access (--allow-unauthenticated) keeps this specialist reachable without a token, matching a public search service.
+
+gcloud run deploy stackexchange-agent \
+  --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/agents/stackexchange-agent:latest \
+  --region ${REGION} --allow-unauthenticated --port 8080
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+Read the service URL and set it as PUBLIC_URL so the agent card advertises a reachable endpoint.
+
+export SE_URL=$(gcloud run services describe stackexchange-agent --region ${REGION} --format='value(status.url)')
+gcloud run services update stackexchange-agent --region ${REGION} --set-env-vars PUBLIC_URL=${SE_URL}
+echo ${SE_URL}
+Copied!
+Test the agent
+Set the card URL, persist it to ~/.bashrc, and fetch the card. Because the service is public, no token is needed.
+
+export STACKEXCHANGE_AGENT_URL="${SE_URL}/.well-known/agent-card.json"
+echo "export STACKEXCHANGE_AGENT_URL='${STACKEXCHANGE_AGENT_URL}'" >> ~/.bashrc
+curl -sS "${STACKEXCHANGE_AGENT_URL}" | python3 -m json.tool
+Copied!
+Confirm the card lists the Stack Exchange skill and both interface versions.
+
+Click Check my progress to verify the objective.
+Deploy the Stack Exchange agent to Cloud Run
+
+Task 4. Generate the Bug DB agent with Antigravity and deploy to GKE
+In this task, you go faster with vibecoding. Instead of writing the Bug DB agent by hand, you give a specification to the Antigravity coding agent and let it generate a working ADK project. The agent runs semantic vector search over a BigQuery table of past incidents, which is already populated for you. You deploy it to GKE.
+
+Why generate it? The earlier agents showed how little code A2A and ADK require. A precise specification is now enough for a coding agent to produce that code for you. Writing a good prompt—clear inputs, outputs, data contract, and constraints—is itself the skill.
+
+Why vector search? Past incidents are matched by meaning, not keywords. The tool embeds the user's error into a vector and asks BigQuery for the nearest stored incidents by cosine distance. The one rule that must hold: the query and the stored rows must use the same embedding model (text-embedding-004, 768 dimensions), or the vectors live in different spaces and the distances are meaningless. The table was pre-seeded with text-embedding-004 vectors, so the prompt tells the generated agent to embed queries with the same model.
+
+Why GKE? This specialist represents a team that standardized on Kubernetes. Deploying it to GKE proves the third runtime in the system; the root still reaches it as just another A2A card.
+
+Install the lab tooling
+Give your coding agent the agents-cli skills so it knows how to scaffold, build, and deploy an agents-cli project. This adds the skills to all detected AI coding assistants (Antigravity, Gemini, Claude Code, and others).
+
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+In the Cloud Shell Terminal, install the skills.
+
+agents-cli setup --agent all
+Copied!
+Install Terraform, which the GKE deploy uses to provision the cluster.
+
+wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install -y terraform
+terraform -version
+Copied!
+Generate the agent with Antigravity
+Move to your agents workspace and launch the Antigravity CLI in the Cloud Shell Terminal.
+
+cd ~/agents
+agy
+Copied!
+When prompted to choose a login method, select Google Cloud Project, location global and follow the prompts to authenticate.
+
+Paste the following prompt into Antigravity to generate the project under ~/agents/bq-agent, then review the files it creates.
+
+ # Build a Bug Database agent (ADK + BigQuery semantic search, A2A, on GKE)
+
+ Build a standalone agent named **`bq-agent`**. You have the **agents-cli** skills;
+ use them to design, build, and deploy it. This is a description of the product and
+ its capabilities, not a set of steps — decide the implementation yourself.
+
+ ## What it is
+
+ A self-contained specialist agent that answers one question well: *"Have we seen
+ this software problem before, and how was it fixed?"* It performs **semantic
+ (meaning-based) search** over an internal database of past engineering incidents
+ in **BigQuery** and returns the most similar incidents with their resolutions.
+
+ - Framework: **ADK** (Python), built with agents-cli.
+ - Model: **`gemini-3.5-flash`** (read from config; don't hardcode).
+ - Interface: **A2A** — a peer service with no knowledge of any specific caller.
+ - Runtime: **GKE**.
+ - Access: **read-only** over BigQuery. Never mutates incident data.
+
+ ## The tool: `find_similar_bugs`
+
+ One tool provides the entire competency.
+
+ - **Signature:** `find_similar_bugs(query: str) -> str`
+ - **Input:** a free-text problem description (exception, key stack-trace terms,
+   language/framework, symptom).
+ - **Retrieval:**
+   1. Embed `query` with the same embedding model used for the stored vectors
+     (`text-embedding-004`), in the table's region.
+   2. Run BigQuery `VECTOR_SEARCH` over `description_embedding` with
+     `distance_type => 'COSINE'`, `top_k => 3`, passing the query vector as a
+     `FLOAT64` array parameter. Order results by ascending distance.
+ - **Output:** for each match — `bug_id`, `title`, `description`, `resolution`,
+   and the cosine distance. Return a clear "no similar bugs found" when the table
+   yields nothing, and a graceful degradation message if embedding or BigQuery is
+   temporarily unavailable (do not raise).
+
+ ## The knowledge base (BigQuery)
+
+ The table is **pre-populated** for you. Do **not** create, seed, or write to it —
+ query it read-only against this schema.
+
+ **Table `code_assist_bugs.known_bugs` (region `us-central1`):**
+
+ | column | type | notes |
+ |--------|------|-------|
+ | `bug_id` | STRING | stable id; cite it in answers (e.g. `BUG-1001`) |
+ | `title` | STRING | short incident title |
+ | `description` | STRING | problem statement that was embedded |
+ | `resolution` | STRING | the concrete fix |
+ | `description_embedding` | `ARRAY<FLOAT64>` | embedding of `description`; length = the embedding model's dimension (768 for `text-embedding-004`) |
+
+ - **Vector search:** cosine distance; a vector index is optional at this scale.
+ - **Embedding compatibility:** the stored vectors were produced with
+   **
+Copied!
+Note: Antigravity generates the project and can run agents-cli for you. Review the generated app/agent.py and app/tools.py before deploying. The BigQuery table code_assist_bugs.known_bugs was pre-populated when the lab started.
+Tip: While Antigravity works, it asks for permission before it runs each shell command. To avoid approving them one at a time, choose the option that always allows that command and persists your choice to settings.json. Antigravity remembers it and stops prompting for that kind of command.
+Deploy to GKE and test
+Deploy the Bug DB agent to GKE. Antigravity will ask to run the deployment; approve it, and it deploys the agent, exposes a public endpoint, and reports the agent card URL. You can also run the deploy yourself:
+
+cd ~/agents/bq-agent
+agents-cli deploy --project ${PROJECT_ID} --no-confirm-project
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+This takes a while. Creating the GKE Autopilot cluster takes about 8-10 minutes. Let the deploy run to completion. While you wait, you can read ahead into Task 5 to see how the root agent will orchestrate this specialist.
+If the deploy fails right after the cluster is created with an Unauthorized error on a kubernetes_* resource (for example kubernetes_namespace_v1.app), just re-run the deploy. The cluster now exists and its credentials resolve on the retry.
+If the Bug DB agent can't query BigQuery: the deployment grants its runtime service account (bq-agent-app) most roles it needs, but not the two BigQuery roles for the vector-search table. If a query fails with a BigQuery permission error, grant them and retry.
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:bq-agent-app@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:bq-agent-app@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataViewer"
+Copied!
+Record the Bug DB agent's public A2A card URL, persist it to ~/.bashrc, and fetch the card.
+
+export BQ_AGENT_URL="PASTE_THE_BUG_DB_CARD_URL_HERE"
+echo "export BQ_AGENT_URL='${BQ_AGENT_URL}'" >> ~/.bashrc
+curl -sS "${BQ_AGENT_URL}" | python3 -m json.tool
+Copied!
+Note: The BQ_AGENT_URL should be formatted as http://<EXTERNAL_IP>:8080/a2a/app/.well-known/agent-card.json, where <EXTERNAL_IP> is the external load balancer IP used for the deployed agent.
+Send a message to the deployed agent. Run this from the project directory, since agents-cli run needs the manifest, and pass the agent's base URL rather than the card URL. agents-cli builds the /a2a/app endpoint itself from the manifest. This is a native A2A service on a public GKE endpoint, so use --mode a2a.
+
+cd ~/agents/bq-agent
+BQ_BASE_URL=$(echo "${BQ_AGENT_URL}" | sed -E 's#(://[^/]+).*#\1#')
+echo "${BQ_BASE_URL}"
+agents-cli run --url "${BQ_BASE_URL}" --mode a2a "Have we seen a memory leak in a background worker before?"
+Copied!
+Click Check my progress to verify the objective.
+Deploy the Bug DB agent to GKE
+
+Note: If the check fails even after successfully deploying bq-agent, make sure that a Google Service Account named bq-agent-app@PROJECT_ID.iam.gserviceaccount.com exists and has the roles/iam.workloadIdentityUser role bound to the Kubernetes Service Account in the GKE cluster.
+Task 5. Orchestrate the specialists in a graph workflow
+In this task, you build the brain of the system. The root Code Assist agent is an ADK 2.0 graph workflow that maps each specialist as an A2A node, fans out to them in parallel, joins their results, and synthesizes one cited answer. You test the whole system locally before deploying it.
+
+Implement a callback for remote agents to save their findings to the session state
+A RemoteA2aAgent has no output_key argument, so its final reply cannot automatically be saved to the session state. Here you'll complete a callback to copy its final text reply into state[state_key] so the synthesizer can read the remote agents' output from {state_key?}.
+
+Open ~/agents/code-assistant/app/callbacks.py.
+
+Complete the TODO to complete the capture_response_to_state function, which returns a _after_agent_callback callback function. This function should:
+
+Get the events from the callback_context's session
+For the most recent event where the event.author matches the callback_context.agent_name and the event content includes a text part, join all the text parts and save the results to the callback_context's state with the key 'state_key'.
+Why the findings-to-state callback? A workflow node's output is captured only from an event's output field, which an LlmAgent sets but a RemoteA2aAgent does not. A remote agent emits content, not a captured output, so its branch would be empty at the join. Each remote node therefore uses an after_agent_callback to copy its final reply into shared state, and the synthesizer reads each specialist's findings from state by key. This is a subtle but important pattern when mixing remote agents into a graph.
+Create an httpx client that authenticates using Google Application Default Credentials
+In order for your ADK root_agent to call your github_agent on Agent Runtime via A2A, it needs to provide authentication headers. Here you will use the google_authed_client() helper function which uses Google Application Default Credentials to authenticate the request.
+
+Open ~/agents/code-assistant/app/auth.py.
+
+Within the GoogleADCAuth class, complete the TODO in the _apply method to attach the Google Application Default Credentials (ADC) OAuth2 token to the outgoing request headers.
+
+To do this, the _apply() method will need to run the self._creds credential's before_request() method, passing in the required parameters. Running the before_request method refreshes the credentials if necessary, then applies the token to the authentication header.
+
+You can see _apply() is applied to a request by the sync and async auth flows.
+
+Construct the specialist agents
+Open ~/agents/code-assistant/app/agent.py.
+
+Notice that there is a section under a comment header # --- Remote specialists over A2A ----- which you will complete shortly to add additional specialist agents.
+
+Below that, notice the section with the comment header # --- Graph nodes ----- which contains nodes already prepared for you, including:
+
+a query_extractor to extract the primary issue from the user's input
+a manual_search_agent which uses the Vertex AI Search datastore you created in Task 1
+a merge node to join the results from all the specialists
+a synthesizer to interpret the join results and produce a prioritized, cited answer
+Further below, notice the root_agent of class Workflow() where you will complete the graph connections.
+
+Returning to the Remote specialists section, complete the TODO to implement the github_agent as a RemoteA2aAgent. Its card will be found at the GITHUB_AGENT_URL.
+
+For auth, github_agent should set the httpx_client parameter to use the google_authed_client() you implemented above.
+
+For the github_agent, the RemoteA2aAgent constructor should have use_legacy set to False because it calls an ADK agent and can use the ADK A2A extension. (Note: Search "The ADK A2A extension" in this lab to revisit that discussion.)
+
+Also for the github_agent, add an after_agent_callback that calls capture_response_to_state() with the state key 'github_findings'.
+
+Now complete the TODO to implement the stackexchange_agent. It should be implemented as a CleanQueryRemoteA2aAgent with a name, description, agent_card of STACKEXCHANGE_AGENT_URL, and an after_agent_callback that calls capture_response_to_state with the state key 'stackexchange_findings'.
+
+Note that the Stack Exchange node uses the legacy client (use_legacy is not set to False) because it calls a non-ADK LangGraph server.
+
+Complete the root_agent Workflow graph
+In the same file (code-assistant/app/agent.py), complete the TODO to complete the root_agent's Workflow graph. Implement the edges to connect START to query_extractor, fan out to all 5 specialists, merge them with the merge JoinNode, then connect merge to synthesizer.
+
+Why a JoinNode? The specialists run concurrently and finish at different times. A JoinNode is a synchronization barrier: it waits for every incoming branch before the next node runs. A normal node used as a fan-in target would fire once per branch, so the synthesizer would run before the slower specialists returned. The JoinNode guarantees the synthesizer sees all results at once.
+Configure the root's connections
+Create the root agent's .env, pulling in the specialist card URLs you exported in the previous tasks. Leave SALESFORCE_AGENT_URL as a placeholder for now; you add Salesforce in Task 7.
+
+cd ~/agents/code-assistant
+cat << EOF > .env
+GOOGLE_CLOUD_PROJECT=PROJECT_ID
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=True
+MODEL=gemini-3.5-flash
+DATASTORE_ID=code-manuals-datastore
+DEVELOPER_KNOWLEDGE_MCP_URL=https://developerknowledge.googleapis.com/mcp
+SKILL_REGISTRY_LOCATION=us-central1
+GITHUB_AGENT_URL=${GITHUB_AGENT_URL}
+STACKEXCHANGE_AGENT_URL=${STACKEXCHANGE_AGENT_URL}
+SALESFORCE_AGENT_URL=added-in-task-7
+BQ_AGENT_URL=${BQ_AGENT_URL}
+EOF
+Copied!
+Note: manual_search now has two sources: the internal handbook datastore (DATASTORE_ID) and Google's official developer docs via the Developer Knowledge MCP (DEVELOPER_KNOWLEDGE_MCP_URL), whose guiding skill lives in the Skill Registry (SKILL_REGISTRY_LOCATION, a regional service, so us-central1 even though the rest of the lab uses global).
+Confirm the specialist URLs were filled in and none are blank. This check flags any empty URL now, so the root deploy in Task 6 doesn't fail with a cryptic "Required field is not set" error.
+
+cd ~/agents/code-assistant
+blank=$(grep -E '^(GITHUB_AGENT_URL|STACKEXCHANGE_AGENT_URL|BQ_AGENT_URL)=$' .env)
+if [ -n "${blank}" ]; then echo "BLANK specialist URLs (re-export them and recreate .env):"; echo "${blank}"; else echo "All specialist URLs are set."; fi
+Copied!
+Note: The URLs come from the GITHUB_AGENT_URL, STACKEXCHANGE_AGENT_URL, and BQ_AGENT_URL variables you exported earlier. If the check lists any as blank (for example, after reopening Cloud Shell), re-export it from the value you recorded in that specialist's task, then recreate the file.
+Publish the Developer Knowledge skill
+The manual_search branch loads a skill on demand from the Skill Registry to search Google's official developer documentation with the Developer Knowledge MCP. A skill is a small package of instructions the agent discovers at runtime with search_skills and loads with load_skill. Publish it once so the agent can find it.
+
+Publish the using-developer-knowledge-mcp skill to the Skill Registry.
+
+ cd ~/agents/c
+Copied!
+Note: The command prints Published skill: ... on success. It is create-only: if you re-run it, it reports that the skill already exists and leaves it unchanged. The skill source lives in app/skills/using-developer-knowledge-mcp/SKILL.md.
+Test the system locally
+Install the root agent's dependencies.
+
+agents-cli install
+Copied!
+Start the playground to chat with the whole system.
+
+agents-cli playground
+Copied!
+Open the playground URL from the terminal output, then select app.
+
+Ask a multi-part question, such as Our FastAPI service throws a 500 on startup after a dependency bump. What's the fix?, and confirm the answer cites more than one source.
+
+For a Google-product error (for example, Cloud Run deployment fails: the container failed to start and listen on the PORT), expand the manual_search_agent step in the trace and watch it call search_skills then load_skill, then the Developer Knowledge tools, and cite official Google docs.
+
+Close the playground with CTRL+C.
+
+Note: Running locally, the root calls the deployed specialists with your own credentials, so the GitHub call already works. When you deploy the root in the next task, it calls GitHub as its own service account, which needs an explicit grant.
+Click Check my progress to verify the objective.
+Orchestrate the specialists in a graph workflow
+
+Task 6. Deploy the root and register it in Gemini Enterprise
+In this task, you deploy the root agent to Agent Runtime, authorize it to call the GitHub specialist, verify the full system, and publish it to Gemini Enterprise so users can reach it.
+
+Deploy the root agent
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+Deploy the root to Agent Runtime. Remove the local .venv first, then deploy.
+
+cd ~/agents/code-assistant
+rm -rf .venv
+agents-cli deploy --project ${PROJECT_ID} --no-confirm-project --no-wait \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+Why remove .venv? Testing locally in Task 5 created a .venv virtual environment in the project. Agent Runtime deploys by packaging your project directory into an archive, and .venv/bin/python is a symlink that points to a Python outside the project, which the packager rejects. You lose nothing by deleting it, because Agent Runtime rebuilds dependencies from pyproject.toml and uv.lock on the server. Normally you wouldn't remove it by hand: a .dockerignore (or .gitignore, which agents-cli honors when packaging) excludes .venv automatically. This starter project doesn't ship one, so you clear it manually here.
+Poll until the deployment reports success.
+
+agents-cli deploy --status
+Copied!
+Authorize the root agent
+Here is where the local-versus-deployed identity difference becomes real. When you tested in the playground (Task 5), the root called GitHub and the datastore with your user credentials, which already have access, so it worked. Now the root runs on Agent Runtime and calls them as its runtime service account instead. That service account presents a valid token, but it has not been granted permission to invoke the GitHub engine or query the datastore, so those calls return 403 Permission Denied (a valid token, insufficient permission), not 401.
+
+The fix is two IAM grants: roles/aiplatform.user (it includes aiplatform.reasoningEngines.query, needed to call the GitHub agent, and also lets the manual_search branch load its skill from the Skill Registry) and roles/discoveryengine.viewer (needed for the manual_search branch to query the code-manuals datastore). This is the authorization layer described in the concepts section: authentication proves who you are, authorization decides what you may call.
+
+Provision the runtime service account so you can grant it roles. Agent Runtime uses the AI Platform Reasoning Engine Service Agent, which may not exist yet in a new project. Create it explicitly.
+
+gcloud beta services identity create --service=aiplatform.googleapis.com --project=${PROJECT_ID}
+Copied!
+Note: The command output may name only the Vertex AI Service Agent, but it also creates the Reasoning Engine Service Agent (service-PROJECT_NUMBER@gcp-sa-aiplatform-re.iam.gserviceaccount.com), which is the identity you grant roles to next.
+Grant the runtime service account both roles.
+
+export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-aiplatform-re.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-aiplatform-re.iam.gserviceaccount.com" \
+  --role="roles/discoveryengine.viewer"
+Copied!
+If a grant fails with Service account service-...@gcp-sa-aiplatform-re.iam.gserviceaccount.com does not exist: the service agent hasn't finished provisioning. Re-run the gcloud beta services identity create command from the previous step, wait a few seconds, then re-run the grants.
+Note: IAM changes take a minute or two to take effect. If the first end-to-end call fails to resolve the GitHub agent or query the datastore, wait and try again.
+Developer Knowledge (official Google docs): the manual_search branch also calls the Developer Knowledge MCP as the runtime service account. Its API is enabled for the project (developerknowledge.googleapis.com), and roles/aiplatform.user covers loading the skill from the Skill Registry. If the deployed root returns internal-handbook results but no official-docs citations, confirm that API is enabled and check the deployment logs for the MCP call.
+Verify the deployed system
+In the Google Cloud console, open the Agent Platform Deployments page: search for Agent Platform, then go to Agents > Scale > Deployments (or open https://console.cloud.google.com/agent-platform/runtimes). Your deployed runtimes for the project appear in the list.
+
+Click the name of your code-assistant runtime, then click the Playground tab.
+
+In the message box, send a test query and confirm the root returns a single, cited answer that blends multiple sources.
+
+A CloudSQL connection fails with too many connections under load. What's the fix?
+Copied!
+From the left navigation menu, under Govern, open Agent Registry, and confirm your deployed code-assistant appears.
+
+Create the Gemini Enterprise app
+Deploying makes the root reachable over A2A, but end users don't call A2A endpoints directly. Gemini Enterprise is the web app where users discover and chat with your agent, and where the platform applies enterprise access controls. An agent on Agent Runtime does not appear there automatically, so you first create an app, then register the agent into it.
+
+You create the app in the console, not through the API. Creating it in the UI completes the Gemini Enterprise setup the backend needs before it allocates quota for agent creation. Creating the app through the API skips that step, so a later publish fails.
+
+In the Google Cloud console, search for Gemini Enterprise in the top search bar and open it.
+If prompted, accept the terms and click Continue to enable Gemini Enterprise for the project.
+Click Create your first app (or Create app).
+For the app name, enter enterprise-app.
+Under the name, click Edit next to the generated App ID and replace it with enterprise-app. The publish command in the next section targets .../engines/enterprise-app, so the ID must match exactly.
+Choose global for the location, then click Create.
+Configure the identity provider for Gemini Enterprise
+Go to the Gemini Enterprise page.
+
+Click on Settings > Authentication.
+
+Click Edit for the global location.
+
+In the Add identity provider dialog, click Google Identity.
+
+Click Save.
+
+Note: If the console kept a suffix on the App ID (for example, enterprise-app_1699...), that's fine. Copy your actual App ID and use it in place of enterprise-app in the publish command in the next section.
+Register and share the agent in Gemini Enterprise
+Registering publishes the agent to a governed catalog where users can discover and chat with it. It is the last step that turns your deployed system into a product people can use.
+
+Register the deployed root into your app. Run this from the agent directory so the CLI auto-detects the reasoning engine from deployment_metadata.json, and pass only the app ID.
+
+cd ~/agents/code-assistant
+agents-cli publish gemini-enterprise \
+  --gemini-enterprise-app-id "projects/${PROJECT_NUMBER}/locations/global/collections/default_collection/engines/enterprise-app" \
+  --display-name "Code Assist" \
+  --description "Researches a production error across a bug database, the engineering handbook, Salesforce, GitHub, and Stack Exchange, and returns one cited fix."
+Copied!
+In the Gemini Enterprise console, open the enterprise-app app, select Agents, and confirm Code Assist is listed.
+
+Select Code Assist, then open the User permissions tab.
+
+Select Add user, add your lab user (or All users), choose the Agent User role, and select Save.
+
+In the left navigation, select the Integration tab, then open the link under The link to your web app.
+
+In the web app, choose Code Assist in the agents window, then ask a question that spans several sources, such as the following.
+
+A CloudSQL connection fails with "too many connections" under load. Have we hit this incident before, what does the engineering handbook recommend, and what are the known fixes?
+Copied!
+Confirm the reply is a single, cited answer that blends multiple sources: past incidents from the bug database, the internal engineering handbook, and the web specialists (GitHub and Stack Exchange).
+
+Click Check my progress to verify the objective.
+Deploy and authorize the root agent
+
+Task 7. Extend the system with the Salesforce agent
+In this task, you extend the running system with one more specialist. The Salesforce agent is an ADK agent that searches an organization's document library in Salesforce Files with app-only (2-legged) OAuth, deployed to Cloud Run. You deploy it and rewire the root to include it, which shows how a shared A2A contract lets you grow the system without touching the specialists you already built.
+
+The Salesforce agent authenticates as an application (app-only, 2-legged) through an External Client App, Salesforce's current framework for API integrations (it replaces the classic Connected App). In the following subtasks you create the app, enable the client-credentials flow, and collect the three values the agent needs: SALESFORCE_CLIENT_ID, SALESFORCE_CLIENT_SECRET, and SALESFORCE_DOMAIN.
+
+Create the External Client App
+In your Salesforce org, select the setup icon (gear), then select Setup.
+
+In the Quick Find box, enter App Manager, then select App Manager.
+
+Select New External Client App.
+
+New External Client App in the App Manager
+
+For External Client App Name, enter L400 Lab, and for Contact Email, enter your email address. The API name fills in automatically.
+
+In the API (Enable OAuth Settings) section, select Enable OAuth.
+
+For Callback URL, enter https://login.salesforce.com/services/oauth2/callback.
+
+Under Selected OAuth Scopes, add Manage user data via APIs (api) and Perform requests at any time (refresh_token, offline_access).
+
+In the Flow Enablement section, select Enable Client Credentials Flow.
+
+Select Create.
+
+OAuth settings for the External Client App
+
+Enable the client-credentials flow and set the Run-As user
+Some client-credentials settings live in the app's policies, not its OAuth settings.
+
+In the Quick Find box, enter External Client App Manager, then select External Client App Manager.
+
+Find your L400 Lab app, select the row dropdown, then select Edit Policies.
+
+Edit Policies for the External Client App
+
+Expand OAuth Policies and find the OAuth Flows and External Client App Enhancements section.
+
+Select Enable Client Credentials Flow.
+
+For Run-As User, enter your Salesforce username. If you do not know it, check the Personal Information page in Setup.
+
+To avoid IP-range rejections from the connector's egress in Lab 2, set IP Relaxation to Relax IP restrictions.
+
+Select Save.
+
+Get the Consumer Key and Secret
+Open your app, select the Settings tab, then expand the OAuth Settings section.
+
+Under App Settings, select Consumer Key and Secret.
+
+The Consumer Key and Secret button
+
+Enter the verification code that Salesforce emails you.
+
+Copy the Consumer Key (your SALESFORCE_CLIENT_ID) and the Consumer Secret (your SALESFORCE_CLIENT_SECRET), and save them for the next subtask.
+
+Find your My Domain URL
+In the Quick Find box, enter My Domain, then select My Domain.
+
+From the Current My Domain URL field, copy the host, for example orgfarm-f49dce3e51-dev-ed.develop.my.salesforce.com. This is your SALESFORCE_DOMAIN.
+
+Copy the host only. Use the value in Current My Domain URL (not My Domain Name), without the https:// prefix and without any trailing text such as "with partitioned enhanced domains". Save this domain host value (SALESFORCE_DOMAIN) along with your other Salesforce credentials, as it will be needed in the next labs.
+Complete TODOs to implement the Salesforce agent
+Open salesforce-agent/app/salesforce_client.py.
+
+Complete the TODO in the authenticate() method to implement 2-legged (app-only) auth. To do so, you will need to:
+
+Make a POST request to "https://{self.domain}/services/oauth2/token"
+Include in your data payload a grant_type of client_credentials as well as your client_id and client_secret established upon __init__ of the client.
+The request should use a timeout of _TIMEOUT_SECONDS
+Open the file salesforce-agent/app/app_utils/a2a.py.
+
+Within the function _user_scoped_request_converter, complete the TODO to convert the request. run_request should receive the output of convert_a2a_request_to_agent_run_request() being passed the incoming request, plus part_converter (which is available in the scope of this function).
+
+Open salesforce-agent/app/agent.py.
+
+Complete the TODOs. To do so:
+
+Complete the generate_memories_callback() function. All that needs to be done here is for the callback_context to call add_session_to_memory() method. It doesn't need to return anything.
+Add the generate_memories_callback as an after_agent_callback for the root_agent.
+Call the PreloadMemoryTool() in the list of the root_agent's tools.
+Deploy the Salesforce agent
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+Create the Salesforce agent's .env file.
+
+cd ~/agents/salesforce-agent
+cat << EOF > .env
+GOOGLE_CLOUD_PROJECT=PROJECT_ID
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=True
+MODEL=gemini-3.5-flash
+SALESFORCE_DOMAIN=PASTE_MY_DOMAIN
+SALESFORCE_CLIENT_ID=PASTE_CONSUMER_KEY
+SALESFORCE_CLIENT_SECRET=PASTE_CONSUMER_SECRET
+EOF
+Copied!
+Open ~/agents/salesforce-agent/.env and replace PASTE_MY_DOMAIN, PASTE_CONSUMER_KEY, and PASTE_CONSUMER_SECRET with the values you captured in the previous subtasks.
+
+Note: The Salesforce agent ships with long-term-memory code, but with no Memory Bank configured it runs as a standalone search agent with no recall across conversations. You turn on persistent memory in Task 8.
+Deploy the agent to Cloud Run.
+
+agents-cli deploy --project ${PROJECT_ID} --region ${REGION} --no-confirm-project \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+Allow public access so the root can invoke the service over A2A.
+
+gcloud run services add-iam-policy-binding salesforce-agent \
+  --region=${REGION} --member=allUsers --role=roles/run.invoker
+Copied!
+Read the Salesforce agent's URL from the deployed Cloud Run service, build its A2A card URL, and persist it to ~/.bashrc.
+
+export SF_URL=$(gcloud run services describe salesforce-agent --region ${REGION} --format='value(status.url)')
+export SALESFORCE_AGENT_URL="${SF_URL}/a2a/app/.well-known/agent-card.json"
+echo "export SALESFORCE_AGENT_URL='${SALESFORCE_AGENT_URL}'" >> ~/.bashrc
+curl -sS "${SALESFORCE_AGENT_URL}" | python3 -m json.tool
+Copied!
+Send a message to the deployed agent. Run this from the project directory, since agents-cli run needs the manifest, and pass the agent's base URL rather than the card URL. This is a native A2A service on Cloud Run, so use --mode a2a.
+
+cd ~/agents/salesforce-agent
+agents-cli run --url "${SF_URL}" --mode a2a "ADR-007"
+Copied!
+Rewire and redeploy the root
+Open ~/agents/code-assistant/.env and set SALESFORCE_AGENT_URL to the card URL you just recorded.
+
+Redeploy the root agent to pick up the new specialist.
+
+cd ~/agents/code-assistant
+rm -rf .venv
+agents-cli deploy --project ${PROJECT_ID} --no-confirm-project --no-wait \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+After the deployment succeeds, send a query that the Salesforce document library can answer, and confirm the root now blends Salesforce results with the other sources.
+
+Note: This service is deployed public (like the Stack Exchange agent) because the root's RemoteA2aAgent calls it over A2A without an auth token. A private service would need the caller to send an identity token whose audience is the service URL, plus roles/run.invoker. In the next task, you give this agent long-term memory with Vertex AI Memory Bank.
+Click Check my progress to verify the objective.
+Deploy the Salesforce agent to Cloud Run
+
+Task 8. Give the Salesforce agent long-term memory with Vertex AI Memory Bank
+So far, every agent forgets a user the moment a conversation ends. Each A2A call starts a fresh session, so the Salesforce agent cannot recall what a user told it last time. In this task, you add long-term memory so the agent remembers durable facts about each user across separate conversations.
+
+Agents use two kinds of memory. Short-term memory is the session: the messages in the current conversation. Long-term memory outlives the session. Vertex AI Memory Bank is a managed long-term memory service on Agent Runtime. After each turn it reads the session, uses a model to extract durable facts about the user, and stores them. On the next turn it returns those facts so the agent can personalize its answer.
+
+The Salesforce agent already ships with the code to use Memory Bank. In this task you provision a Memory Bank, connect it, review how the agent reads, writes, and scopes memory, and then test recall across two conversations.
+
+Complete TODOs to add memory to the Salesforce agent
+Open the file code-assistant/app/app_utils/a2a.py.
+Complete the TODO to return the real end-user id to be included in A2A metadata: {'user_id': ctx.user_id}. This allows you to load longterm memories for a user, rather than relying only on context within a single session.
+Open the file salesforce-agent/scripts/create_memory_bank.py.
+Complete the TODO to complete the main() function. It doesn't need to return anything, but should be idempotent (i.e., if you run it multiple times, it should not create multiple memory banks). It should first look for an existing memory bank with a display name that matches DISPLAY_NAME (by listing existing agent_engines, as a Memory Bank is created by default with an agent_engine). If it does not find one, create one. Either way, print the display name and whether it was found or is being created.
+Review how the agent reads, writes, and scopes memory
+Open ~/agents/salesforce-agent/app/agent.py and find PreloadMemoryTool, which loads the user's remembered facts before each turn, and generate_memories_callback, which calls add_session_to_memory to save the conversation after each turn.
+
+Open ~/agents/salesforce-agent/app/app_utils/services.py and note that the memory service is a VertexAiMemoryBankService when MEMORY_BANK_ID is set, and an in-memory service otherwise.
+
+Open ~/agents/code-assistant/app/app_utils/a2a.py and find user_id_meta_provider, which forwards the caller's user ID to a specialist over A2A.
+
+Open ~/agents/salesforce-agent/app/app_utils/a2a.py and find _user_scoped_request_converter, which reads that forwarded user ID so memory is scoped to the real user.
+
+Why the user ID matters: memory is stored per user (per app_name and user_id). Over A2A, an unauthenticated call carries no user identity, so the specialist would fall back to a per-conversation ID (A2A_USER_{context_id}) and forget the user in the next conversation. The root forwards its real user ID so recall works across conversations.
+Provision a Memory Bank and connect the agent
+Set the project and region variables for this task (re-run these if you opened a new Cloud Shell tab).
+
+export PROJECT_ID=PROJECT_ID
+export REGION=us-central1
+gcloud config set project ${PROJECT_ID}
+Copied!
+Create a Memory Bank instance for the Salesforce agent.
+
+cd ~/agents/salesforce-agent
+GOOGLE_CLOUD_PROJECT=${PROJECT_ID} 
+MEMORY_BANK_LOCATION=us-central1
+uv run python scripts/create_memory_bank.py
+Copied!
+Copy the MEMORY_BANK_ID value from the script output.
+
+Open ~/agents/salesforce-agent/.env and add two lines to turn on persistent memory: MEMORY_BANK_ID=<the value you copied> and MEMORY_BANK_LOCATION=us-central1.
+
+Redeploy the Salesforce agent so it connects to the Memory Bank.
+
+agents-cli deploy --project ${PROJECT_ID} --region ${REGION} --no-confirm-project \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Deploy failing with an auth error? If you see service account info is missing 'email' field, your Application Default Credentials lapsed. Run gcloud auth application-default login, then re-run the deploy. If you see a gcloud reauthentication or "no active account" error instead, run gcloud auth login and re-run the deploy. If the failure persists, click Restart in the Cloud Shell toolbar and re-run this task's export block first.
+Grant public access again, because redeploying resets the service's IAM policy.
+
+gcloud run services add-iam-policy-binding salesforce-agent \
+  --region=${REGION} --member=allUsers --role=roles/run.invoker
+Copied!
+Redeploy the root agent (code-assistant) to Agent Runtime.
+
+cd ~/agents/code-assistant
+rm -rf .venv
+agents-cli deploy --project ${PROJECT_ID} --no-confirm-project --no-wait \
+  --update-env-vars "$(grep -v '^#' .env | grep -v '^$' | grep -v '^GOOGLE_CLOUD_PROJECT' | paste -sd,)"
+Copied!
+Note: Memory Bank uses a regional endpoint. Keep MEMORY_BANK_LOCATION=us-central1 even though the agent's model runs on the global endpoint, because the global endpoint does not serve Memory Bank.
+Test long-term, per-user memory
+In Gemini Enterprise, start a conversation and state a durable fact about yourself, such as I'm on the Payments team and I only care about Spanner documents.
+
+Wait about a minute for Memory Bank to generate the memory, then start a new conversation.
+
+In the new conversation, ask a related question without repeating the fact, and confirm the agent recalls your preference.
+
+Memory stores facts about you, not your questions. Memory Bank keeps durable facts about the user, so a troubleshooting question like "why does my service return 502?" records nothing on its own. A memory appears only when you say something lasting about yourself, such as your team, your role, or the sources you care about. This is by design: it keeps memory relevant instead of cluttered with one-off queries.
+Generation is asynchronous and selective. Writes happen in the background after the turn, so a new memory takes a short time to appear. A model also consolidates and de-duplicates facts, so repeated statements do not create duplicates.
+View your stored memories in the Cloud Console
+In the Google Cloud console, go to Agent Engines (Agent Platform > Agents > Memory Bank).
+
+Open the salesforce-agent-memory engine.
+
+Open the Memories tab and confirm your fact appears, scoped to your user ID (your email).
+
+Tip: You can jump straight to the memories view at https://console.cloud.google.com/agent-platform/runtimes/locations/us-central1/agent-engines/[MEMORY_BANK_ID]/memories?project=${PROJECT_ID}, using the Memory Bank ID from the create step.
+Click Check my progress to verify the objective.
+Create a Vertex AI Memory Bank for the Salesforce agent
+
+Congratulations!
+In this lab, you built a heterogeneous multi-agent system. You deployed agents from different frameworks to Agent Runtime, Cloud Run, and GKE; connected them over A2A using the correct variant and authentication for each host; generated an agent with the Antigravity coding agent; orchestrated the specialists as nodes in an ADK 2.0 graph workflow; and registered the system in Gemini Enterprise. You also gave the Salesforce agent long-term memory with Vertex AI Memory Bank, scoped per user across conversations, so it personalizes answers over time. You can now extend the system with any new specialist by giving it an agent card and mapping it into the root, no matter how or where it is built.
+
+Copyright 2026 Google LLC. All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.

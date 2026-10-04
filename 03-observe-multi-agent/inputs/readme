@@ -1,1 +1,385 @@
 https://explore.qwiklabs.com/classrooms/21327/labs/115214
+
+[FDE] Observe and Secure a Multi-Agent System: Challenge Lab
+schedule
+1 hour 30 minutes
+universal_currency_alt
+7 Credits
+info
+This lab may incorporate AI tools to support your learning.
+APEX014
+Lab Information
+
+Lab Manual Update	October 02, 2026
+Lab Tested Date	October 02, 2026
+Completion in last 24 hours	02
+Challenge overview
+In the Build Enterprise Agents lab you built a multi-agent system spanning two different runtimes: github_agent on Agent Runtime and salesforce_agent on Cloud Run, where github_agent reaches an external GitHub MCP server for its tools and communicates over the Agent2Agent (A2A) protocol.
+
+You can run that system, but you can't yet see it end to end or reason about its security. In this lab you add the observability and security layer. You turn on distributed tracing, ensure all the agents and the MCP server are registered so the platform can discover them, view the whole system as an Agent Topology graph, and review the fleet's inventory, posture, and threats in Security Command Center (SCC) AI Protection.
+
+Both Agent Topology and SCC AI Protection depend on the same inputs: trace data plus App Hub and Agent Registry discovery. The goal of this lab is to learn how to instrument your agents so they're observable and how to secure them.
+
+At a glance: your multi-agent fleet is instrumented and registered, then observed with Agent Topology and secured with SCC AI Protection.
+
+Note: Agent Topology and parts of SCC AI Protection build their results from aggregated data in batches (for topology, from trace data; for SCC, from usage analysis and attack-path simulations that run about every six hours). You configure everything they need in this lab, but the finished topology graph and some SCC findings can take time, up to a few hours, to appear. You may not see the fully rendered graph or every finding before the lab ends, and that's expected. You can optionally return to the environment to view these after the lab is complete.
+This lab continues from the previous lab in this course and assumes the github_agent and salesforce_agent fleet is already deployed in this project.
+
+Topics tested
+This lab challenges you to demonstrate your ability to do the following:
+
+Verify how the agents are instrumented for tracing, and grant the identity that exports their traces.
+Register the Cloud Run agent and the GitHub MCP server so the platform can discover them.
+Configure a multi-agent system for Agent Topology and view its graph.
+Create, find, and fix an over-privileged agent service account using Policy Analyzer.
+(Optional) Detect a runtime threat against an agent with Agent Platform Threat Detection.
+Prerequisites
+Important: Save your third-party credentials in a persistent local location.
+
+This lab interacts with external third-party platforms. If you plan to complete the related labs (Build Enterprise Agents and Agent Identity Foundations), you will reuse the same third-party credentials across those sessions.
+
+Save the following credentials:
+
+GitHub: Personal Access Token (classic) with repo and read:org scopes
+Salesforce: Connected App Consumer Key (Client ID)
+Salesforce: Connected App Consumer Secret (Client Secret)
+Salesforce: My Domain URL
+Before you begin, confirm that in this Google Cloud project you have:
+
+The agent fleet from Build Enterprise Agents deployed and running: github_agent on Agent Runtime, and salesforce_agent on Cloud Run, with the GitHub MCP server in use by github_agent.
+The agent code available at gs://PROJECT_ID-bucket/agents.
+You should be comfortable with gcloud, agents-cli, and ADK multi-agent systems.
+
+Setup and requirements
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Google Cloud resources are made available to you.
+
+This hands-on lab lets you do the lab activities in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials you use to sign in and access Google Cloud for the duration of the lab.
+
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Note: Use an Incognito (recommended) or private browser window to run this lab. This prevents conflicts between your personal account and the student account, which may cause extra charges incurred to your personal account.
+Time to complete the lab—remember, once you start, you cannot pause a lab.
+Note: Use only the student account for this lab. If you use a different Google Cloud account, you may incur charges to that account.
+How to start your lab and sign in to the Google Cloud console
+Click the Start Lab button. If you need to pay for the lab, a dialog opens for you to select your payment method. On the right is the Lab setup pane with the following:
+
+The Open Google Cloud console button
+The temporary credentials that you must use for this lab
+Other information, if needed, to step through this lab
+In the Lab Setup section, right-click Open Google Cloud console and select Open link in new window (or alternatively right-click and select Open Link in Incognito Window if you are running the Chrome browser).
+
+The lab spins up resources, and then opens another tab that shows the Sign in page.
+
+Tip: Arrange the tabs in separate windows, side-by-side.
+
+Note: If you see the Choose an account dialog, click Use Another Account.
+If necessary, copy the Username below and paste it into the Sign in dialog.
+
+"Username"
+Copied!
+You can also find the Username in the Lab Setup pane.
+
+Click Next.
+
+Copy the Password below and paste it into the Welcome dialog.
+
+"Password"
+Copied!
+You can also find the Password in the Lab Setup pane.
+
+Click Next.
+
+Important: You must use the credentials the lab provides you. Do not use your Google Cloud account credentials.
+Note: Using your own Google Cloud account for this lab may incur extra charges.
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the Google Cloud console opens in this tab.
+
+Note: To access Google Cloud products and services, click the Navigation menu or type the service or product name in the Search field. Navigation menu icon and Search field
+Task 1. Prepare your environment
+In this task, you open Cloud Shell, set the variables you use throughout the lab, confirm the fleet is present, and enable the observability and discovery APIs.
+
+Set variables and configure workspace
+In the Cloud Shell Terminal, set the project, location, and organization variables you use throughout the lab. This lab uses us-central1:
+
+export PROJECT_ID=PROJECT_ID
+export LOCATION=us-central1
+gcloud config set project ${PROJECT_ID}
+export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+export ORGANIZATION_ID=$(gcloud projects get-ancestors ${PROJECT_ID} --format=json | jq -r '.[] | select(.type=="organization") | .id')
+echo "Project: ${PROJECT_ID} (${PROJECT_NUMBER}), Org: ${ORGANIZATION_ID}, Location: ${LOCATION}"
+Copied!
+Copy the pre-staged agent code and prerequisite scripts from the project bucket:
+
+gcloud storage cp -r gs://PROJECT_ID-bucket/apex_labs .
+Copied!
+Run the prerequisite script to deploy the baseline environment resources, update your PATH, and copy the pre-staged agent code:
+
+bash apex_labs/lab2_prereqs.sh
+Copied!
+Copy the settings configuration to disable Gemini Code Assist during lab execution:
+
+gcloud storage cp -r gs://${PROJECT_ID}-bucket/agents .
+mkdir -p ~/.vscode
+gcloud storage cp -r gs://PROJECT_ID-bucket/settings.json ~/.vscode/
+Copied!
+Install agents-cli, which you use to inspect and register agents:
+
+export PATH="${HOME}/.local/bin:${PATH}"
+uvx google-agents-cli setup
+uv tool upgrade google-agents-cli
+agents-cli info
+Copied!
+Confirm the fleet is present
+Check that the agents from the previous lab are running in this project.
+
+List the Cloud Run services. The --region below must be the same region you deployed the agents in the previous labs:
+
+gcloud run services list --project=${PROJECT_ID} --region=${LOCATION} --format="table(metadata.name)"
+Copied!
+In the output, confirm you see salesforce-agent: the Cloud Run A2A agent.
+
+List the agents running on Agent Runtime:
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/reasoningEngines" | jq -r '(.reasoningEngines // [])[] | "\(.displayName)\t\(.name)"'
+Copied!
+Confirm that agents are listed. This includes github_agent, which runs on Agent Runtime.
+
+Note: If any of these agents are missing, this project didn't carry the ending state of the pre-requisite labs.
+Enable the observability and discovery APIs
+Agent Topology and SCC AI Protection depend on tracing (Cloud Trace and the Telemetry API), App Hub, App Topology, and Agent Registry. Enable them now.
+
+Enable the required observability and discovery APIs in your project: observability.googleapis.com cloudtrace.googleapis.com telemetry.googleapis.com apphub.googleapis.com apptopology.googleapis.com agentregistry.googleapis.com cloudasset.googleapis.com monitoring.googleapis.com logging.googleapis.com
+
+Note: App Hub is the inventory that both Agent Topology and SCC AI Protection read from. It classifies your agents and catalogs your MCP servers. Without the App Hub API, neither appears.
+Click Check my progress to verify the objective.
+Enable the observability and discovery APIs
+
+Before proceeding to Task 2, here's a brief architecture diagram of what you will be building in this lab:
+
+Architecture: the agent fleet feeds discovery (Agent Registry and App Hub) and emits trace data, which power the Observability and Agent Topology block and the Security Command Center AI Protection block.
+
+Task 2. Export traces to Cloud Trace
+A trace is the recorded path of a single request as it moves through your system. Each step along the way: a model call, a tool call, one agent handing off to another is captured as a span, and the spans in a trace show what happened, in what order, and how long each part took. In a multi-agent system, traces are what reveal how the agents actually work together.
+
+Your agents create traces using OpenTelemetry, the open, vendor-neutral standard for instrumenting applications. They export those traces to Cloud Trace, part of Google Cloud Observability, where you can inspect them in Trace Explorer and, importantly for this lab, where Agent Topology and SCC AI Protection read them to work out the relationships between your agents.
+
+In this task, you make sure the fleet emits trace data, because the edges in the topology graph and the activity view in AI Protection come from aggregated traces. If there are no traces found for the agent, then there are no edges in the topology graph.
+
+What makes an agent traceable?
+Getting trace data out of an agent takes three things. The first two were completed for you when the fleet was built in the Build an Enterprise Agent lab; this lab does the third. Understanding all three matters, because if any one is missing, the agent runs fine but produces no usable traces and the topology graph stays empty.
+
+The instrumentation library (done in the previous lab). Each agent's pyproject.toml declares google-adk[otel-gcp], which pulls in opentelemetry-instrumentation-google-genai. This is what generates the model and call_llm spans that become the edges between agents in the topology graph. Without this dependency, the agent has no GenAI spans to export.
+The exporter setup (done in the previous lab). Each agent's app/app_utils/telemetry.py defines setup_telemetry() at startup, which runs get_gcp_exporters(enable_cloud_tracing=True). That points the OpenTelemetry exporter at the Telemetry OTLP API (telemetry.googleapis.com).
+Permission to export (this lab). Because the exporter targets the Telemetry OTLP API, the identity each agent runs as needs the Cloud Telemetry Traces Writer role (roles/telemetry.tracesWriter). You grant this next.
+Explore the files yourself
+Explore the following files in one of the agents to see the instrumentation for yourself:
+
+Open the ~/agents/salesforce-agent/pyproject.toml file in the Cloud Shell Editor.
+
+cloudshell edit ~/agents/salesforce-agent/pyproject.toml
+Copied!
+In pyproject.toml, find the google-adk dependency and confirm it includes the otel-gcp extra; the library that produces the GenAI spans.
+
+Within the agent directory, open the app/app_utils/telemetry.py and find setup_telemetry() and the get_gcp_exporters(enable_cloud_tracing=True) call. This is the code that exports those spans to Cloud Trace.
+
+Grant the trace-writer role by runtime
+An agent exports its traces as the identity it runs as, so to let it write traces you grant that identity the Cloud Telemetry Traces Writer role. Which identity you grant and whether you need to grant anything at all depends on the runtime:
+
+Agent Runtime agents (github_agent) export through managed built-in telemetry, so they need no per-agent grant here.
+Cloud Run agents export as their own service account, which you grant explicitly.
+Grant the Cloud Telemetry Traces Writer (roles/telemetry.tracesWriter) role on the project to the service account used by the salesforce-agent Cloud Run service. In this case, this is the Compute Engine default service account.
+Generate traffic so the system emits traces
+Find your github_agent query URL by selecting the agent in Agent Platform Runtimes and clicking Copy query url.
+
+Remove the :query method from the end of the URL.
+
+Use the rest of the URL to query your agent using agents-cli run with --url, --mode adk, and --app-name app, followed by a query message.
+
+Confirm the traces landed
+Check that your query actually produced trace data.
+
+In the Google Cloud console, open Trace explorer (navigation menu > Monitoring > Trace explorer) and select this project.
+
+Set the time range to the last hour. In the span filter, enter the span name call_llm (or agent_run). You should see one or more recent traces from the query you just sent.
+
+Click a trace to open its waterfall view, and read it top to bottom:
+
+The top-level invocation / agent_run span is the root agent handling your request.
+Nested agent_run spans are the specialist agents the root called over A2A.
+call_llm spans are the model calls each agent made, and execute_tool spans are tool or MCP calls. For example, github_agent calling the GitHub MCP server.
+The nesting and timing show exactly how your one request flowed through the whole fleet. This is the same span data that Agent Topology later aggregates into the graph edges you view later in this lab.
+
+Note: Traces are ingested through the Telemetry API and can take a minute or two to appear. If you don't see them yet, wait and refresh.
+Click Check my progress to verify the objective.
+Grant the trace-writer role to an agent's service account
+
+Task 3. Confirm the Agent Runtime agents are already discovered
+How the platform finds your agents
+Before an agent can appear in an Agent Topology graph or in SCC AI Protection, the platform has to know two things about it: that it exists, and that it's actually an agent (or an MCP server) rather than a generic service. Google Cloud keeps track of this in two places: App Hub, which automatically catalogs your running resources and can label one as an agent, and Agent Registry, the record of agents you register yourself. A resource shows up in Topology and AI Protection once it's in that inventory with the right label.
+
+How a resource gets there depends on the runtime it runs on:
+
+Agent Runtime agents are cataloged and labeled as agents automatically — you do nothing.
+Cloud Run agents are not labeled automatically — you register them yourself in Agent Registry.
+MCP servers are cataloged only after the App Hub API is enabled (which you did in Task 1) and the server is registered.
+The next three tasks follow this rule: you confirm the Agent Runtime agents (Task 3), register the Cloud Run agent (Task 4), and register the MCP server (Task 5).
+
+List the agents already in Agent Registry and confirm github_agent appears:
+
+gcloud alpha agent-registry agents list --location=${LOCATION} --project=${PROJECT_ID} --format="table(displayName)"
+Copied!
+Confirm App Hub classifies an Agent Runtime agent as AGENT. Look up one reasoning engine and check its functional type:
+
+export TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer ${TOKEN}" -H "x-goog-user-project: ${PROJECT_ID}" "https://apphub.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/discoveredWorkloads" | jq -r '.discoveredWorkloads[] | "\(.workloadProperties.functionalType.type // "-")\t\(.workloadReference.uri)"'
+Copied!
+Task 4. Register the Cloud Run agent
+In this task, you register the agent that is not auto-discovered: salesforce_agent (Cloud Run). Until you register it, it cannot appear as a node in Agent Topology or as an asset in SCC AI Protection.
+
+Let the platform invoke the Cloud Run agent
+A2A registration reads the agent's card, so grant the Discovery Engine service agent permission to invoke the Cloud Run service. First, create the Discovery Engine service identity:
+
+gcloud beta services identity create \
+  --service=discoveryengine.googleapis.com \
+  --project=${PROJECT_ID}
+Copied!
+Grant the Discovery Engine service agent (service-PROJECT_NUMBER@gcp-sa-discoveryengine.iam.gserviceaccount.com) the Cloud Run Invoker (roles/run.invoker) role on the salesforce-agent Cloud Run service.
+
+Click Check my progress to verify the objective.
+Grant the Discovery Engine service agent invoker access
+
+Register only what is missing
+Fetch the salesforce_agent A2A agent card (/.well-known/agent-card.json or /a2a/app/.well-known/agent-card.json from the service URL and save it locally:
+
+export SF_URL=$(gcloud run services describe salesforce-agent --region=${LOCATION} --format='value(status.url)')
+export TOKEN=$(gcloud auth print-identity-token)
+curl -s -H "Authorization: Bearer ${TOKEN}" \
+  "${SF_URL}/a2a/app/.well-known/agent-card.json" -o salesforce_card.json
+Copied!
+Register the agent to Agent Registry as a service named salesforce-agent by passing along the agent card content.
+
+To do this, use gcloud alpha agent-registry services create with the correct --agent-spec-type and other arguments. Ensure you configure the correct location, project, and point to the downloaded agent card spec using the appropriate parameter.
+
+Note: Registration is idempotent: re-running services create for an agent that already exists updates it in place rather than creating a duplicate.
+Click Check my progress to verify the objective.
+Register the Cloud Run agent in Agent Registry
+
+Task 5. Register the GitHub MCP server
+In this task, you register the GitHub MCP server that github_agent uses, so it appears as an MCP node in the topology graph and as an asset in SCC AI Protection.
+
+Register the GitHub MCP server
+Use another gcloud alpha agent-registry services create command to register the GitHub MCP server in the Agent Registry as a service named github-mcp. Use an MCP server spec type of no-spec and an interface for its URL https://api.githubcopilot.com/mcp/ using the JSONRPC protocol.
+
+Note: Use --mcp-server-spec-type=no-spec when you register only the server's endpoint. Use tool-spec (with --mcp-server-spec-content) to also register the server's tool catalog.
+Confirm the MCP server is registered:
+
+gcloud alpha agent-registry mcp-servers list --location=${LOCATION} --project=${PROJECT_ID}
+Copied!
+Note: MCP inventory in both Agent Topology and SCC AI Protection requires the App Hub API you enabled in Task 1.
+Click Check my progress to verify the objective.
+Register the GitHub MCP server in Agent Registry
+
+Task 6. View the Agent Topology graph
+In this task, you view the running system as a graph. The nodes are the agents and the MCP server you just made discoverable; the edges are the relationships derived from the traffic you generated. If the batch aggregation has completed you'll see the full graph; otherwise you'll confirm the configuration is correct and check back later.
+
+Note: Because Agent Topology is in Preview and aggregates trace data in batches, the graph can take time to populate after you register agents and generate traffic — you may not see the fully rendered graph before the lab ends, which is expected. If nodes or edges are missing, check back later. To confirm the pipeline is working in the meantime, open Trace Explorer and filter for the span name call_llm.
+In the Google Cloud console, open the navigation menu and go to the Agent Topology page under the Gemini Enterprise Agent Platform observability section.
+Select this project. The graph shows github_agent and salesforce_agent, with an edge from github_agent to the GitHub MCP server.
+Confirm that the nodes span two runtimes (Agent Runtime and Cloud Run), yet appear as one system because discovery classified them all as agents.
+A sample agent topology graph
+
+Agent Topology
+
+Task 7. See the fleet in SCC AI Protection, then introduce a realistic risk
+In this task, you switch to a security lens. Because you registered the agents and the MCP server, they now appear in SCC AI Protection. You review the fleet there, then introduce a common real-world mistake — over-granting an agent's service account, that you find and fix in the next two tasks.
+
+Note: Viewing Attack Path Scores and Simulation for a finding requires Security Command Center to be activated at the organization level (Premium or Enterprise) with AI Protection enabled. Since this lab does not configure that, the steps related to Attack Path are provided here as informational only.
+In the Google Cloud console, open the navigation menu and find Agent Platform > Agents, then select the Security tab, or navigate to https://console.cloud.google.com/agent-platform/security.
+
+Explore the dashboard to see the agent fleet's AI inventory and any current risks.
+
+Now simulate a common mistake. In the Cloud Shell Terminal, grant one Cloud Run agent's service account the broad roles/editor role:
+
+export SF_SA=$(gcloud run services describe salesforce-agent --region=${LOCATION} \
+  --format='value(spec.template.spec.serviceAccountName)')
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:${SF_SA}" \
+  --role="roles/editor" --condition=None
+Copied!
+Note: This over-permission is a deliberate, reversible demonstration. You remove it in Task 9, so the fleet is not left in an insecure state. If there is an existing Non-human identity finding for Salesforce agent under Agents with excessive permissions, you can skip the above step and proceed to Task 8.
+
+Informational note: To have AI Protection compute an attack-path / attack-exposure score for this agent (and flag it as a toxic combination, such as "over-privileged agent exposed to the public internet"), the agent must be added to the high-value resource set under Security Command Center > Settings > Attack path simulation. That configuration and the resulting scores require organization-level access and run on a batched schedule (about every six hours), so they're informational in this lab. You still view the excessive-permission finding itself in the next task, and prove it immediately with Policy Analyzer.
+Task 8. Identify the security finding and its scope using Policy Analyzer
+In this task, you find the over-privilege in SCC AI Protection and then prove its exact scope with Policy Analyzer.
+
+Informational note: In production, the tool that tells you exactly which permissions to drop is IAM Recommender: https://console.cloud.google.com/iam-admin/iam, which recommends a smaller role based on roughly 90 days of real usage. Because you granted roles/editor only moments ago, it has no usage history yet, so it won't show a recommendation in this lab.
+In the Agent Platform Security tab, open the Agents with excessive permissions and AI risks by severity widgets, and locate the salesforce_agent you just over-granted.
+
+Good to know: The related toxic combination / attack-path view and its attack-exposure score require the high-value resource set and organization-level access, so that specific view may not appear here. Policy Analyzer, next, proves the over-privilege immediately.
+Use Policy Analyzer to list all the resources the agent's service account can access.
+
+In the console, go to IAM & Admin > Policy Analyzer.
+Click Create custom query. Set the scope to this project, set Parameter 1 to Principal, and enter the agent's service account, then click Continue. You can get the service account by running echo ${SF_SA} in the terminal.
+Under Advanced options, make sure List resources within resource(s) matching your query is checked. Then click Analyze > Run query.
+The results show that roles/editor lets the service account act on nearly every resource type in the project, far more than an agent needs. This broad reach is the risk.
+
+Note: Policy Analyzer reads from Cloud Asset Inventory, which can lag a new grant by up to a minute. If you don't see roles/editor yet, wait a moment and re-run the query.
+Review the policy analyzer results to identify the permissions to remove. For this lab you already know what the agent needs: only its narrow roles (roles/aiplatform.user, roles/telemetry.tracesWriter, roles/logging.logWriter, and roles/cloudtrace.agent), which means roles/editor is the excess to remove.
+
+Task 9. Fix it and verify least privilege
+You fix the over-privilege by removing roles/editor. But first confirm the agent still has the narrow roles it needs, and grant any that are missing, so it keeps working after you take the broad role away.
+
+Remediate the service account
+Check which roles the agent's service account currently has:
+
+gcloud projects get-iam-policy ${PROJECT_ID} --flatten="bindings[].members" \
+  --filter="bindings.members:${SF_SA}" \
+  --format="value(bindings.role)"
+Copied!
+Confirm the roles the agent needs are present: roles/aiplatform.user, roles/telemetry.tracesWriter, roles/logging.logWriter, and roles/cloudtrace.agent (alongside the roles/editor you added).
+
+Remove the over-broad roles/editor role from the salesforce-agent service account and verify that it has been removed and the service account is restricted to the narrow roles.
+
+Confirm roles/editor is gone from the live policy immediately:
+
+gcloud projects get-iam-policy ${PROJECT_ID} \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:${SF_SA} AND bindings.role:roles/editor" \
+  --format="value(bindings.role)"
+Copied!
+The command returns nothing, which confirms the binding was removed and the agent is right-sized to least privilege.
+
+Note: The live IAM policy above is the immediate source of truth. If you re-run the Task 8 Policy Analyzer query, it may still show roles/editor for up to a minute because Cloud Asset Inventory lags IAM changes.
+Click Check my progress to verify the objective.
+Remediate the over-privileged agent
+
+Task 10. (Optional Exercise) Trigger and view an agent's runtime attacks
+In this task, you see Agent Platform Threat Detection in action. It monitors Agent Runtime agents for runtime attacks (malicious binaries, container escapes, reverse shells) and control-plane threats, and generates a Security Command Center finding in near real time. You use the documented test to trigger a detector safely.
+
+In the Agent Platform Security tab, open the AI threats widget to see where active threats against your agents appear.
+Follow Test Agent Platform Threat Detection to deploy the throwaway test agent, whose tool runs a harmless simulated attack (for example, executing the standard EICAR test file). The script deploys the agent, runs the test, and deletes the agent automatically.
+In Security Command Center > Findings (or the AI threats widget), find the resulting threat finding, such as Execution: Added Malicious Binary Executed, and open it to review the affected agent, the detector, and the recommended response.
+Note: The test deploys a real Agent Runtime agent, so it takes several minutes and needs a Cloud Storage staging bucket. Viewing the resulting finding requires organization-level Security Command Center access. Model Armor — inline prompt screening — is a separate component of AI Protection covered in the Expert-Level Security lab, so it is not repeated here.
+Congratulations!
+In this lab, you made a running multi-agent system observable and secure. You enabled the observability and discovery APIs, granted the trace-writer role so the fleet exports traces, and generated traffic to produce the relationships the platform graphs. You confirmed that Agent Runtime agents are discovered automatically, and you registered the Cloud Run specialist and the GitHub MCP server so the whole system is visible in the Agent Topology graph. Then you ran a security loop: you over-granted an agent's service account, found it in SCC AI Protection under Agents with excessive permissions, proved the exact scope with Policy Analyzer, and right-sized it to least privilege. Along the way you saw how attack-path scoring works at the organization level and, optionally, how Agent Platform Threat Detection flags runtime attacks.
+
+The key idea to carry forward is that an agent's runtime determines its discovery path: Agent Runtime is automatic, while Cloud Run agents and MCP servers must be registered and that both observability and security are built on the same foundation of trace data plus App Hub and Agent Registry discovery.
+
+Next steps / Learn more
+Agent Topology
+Instrument AI agents for observability
+Instrument ADK agents
+Security Command Center AI Protection overview
+Agent Platform Threat Detection
+Policy Analyzer
+Manage agents in Agent Registry
+Google Cloud training and certification
+...helps you make the most of Google Cloud technologies. Our classes include technical skills and best practices to help you get up to speed quickly and continue your learning journey. We offer fundamental to advanced level training, with on-demand, live, and virtual options to suit your busy schedule. Certifications help you validate and prove your skill and expertise in Google Cloud technologies.
+
+Copyright 2026 Google LLC. All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.
