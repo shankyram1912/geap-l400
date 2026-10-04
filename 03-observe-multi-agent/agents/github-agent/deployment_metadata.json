@@ -1,0 +1,9 @@
+{
+  "pending_operation": {
+    "operation_name": "projects/474207403098/locations/us-central1/reasoningEngines/8216940115683966976/operations/799511241641951232",
+    "project": "qwiklabs-gcp-04-f76ad9f44cd7",
+    "location": "us-central1",
+    "deployment_target": "agent_runtime",
+    "started_at": "2026-10-04T11:39:47.222629+00:00"
+  }
+}
