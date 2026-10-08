@@ -1,0 +1,165 @@
+https://explore.qwiklabs.com/classrooms/21327/labs/115218
+
+[FDE] Cost/token Estimation, Analysis, and Optimization: Challenge Lab
+schedule
+2 hours
+universal_currency_alt
+7 Credits
+info
+This lab may incorporate AI tools to support your learning.
+L400-APEX008
+Lab Information
+
+Lab Manual Last Updated Date	October 08, 2026
+Last Tested Date and Time	October 08, 2026, 06:22:06
+Completion in Last 24 Hours	86
+Overview
+Agentic applications drive significant model and service costs. A single user question fans out into repeated coordinator model calls, sub-agent calls, retrieval queries, and reasoning tokens, and teams often ship agents without ever knowing what one answer costs.
+
+In this lab, you operate Code Assistant Agent, a multi-agent code assistant built with the Agent Development Kit (ADK): a Coordinator consults a DocsAgent backed by Agent Search and a CommunityAgent backed by a local vector store, then synthesizes a cited answer.
+
+You measure its cost per query with a usage ledger, apply three optimization levers (model tiering, context caching, and reasoning and retrieval token reduction), and score the answer quality after every change. You finish with a graded final challenge: meet a cost-per-query budget while keeping quality at or above a quality floor (a minimum passing score), scored on held-out queries.
+
+You run this hands-on lab in a Jupyter notebook on Gemini Enterprise Agent Platform Workbench, a managed JupyterLab environment. This lab guide gets you into the environment and opens the notebook; the detailed instructions live inside the notebook itself (code_assistant_cost_optimization.ipynb).
+
+Objectives
+In this challenge lab, you demonstrate your ability to do the following:
+
+Measure the cost per query of a multi-agent application with a usage ledger and a cost model.
+Apply model tiering and compare cost against a scored answer-quality metric.
+Use context caching and reasoning controls to reduce token spend.
+Optimize an agent configuration to meet a cost budget at or above a quality floor.
+Prerequisites
+To complete this lab, you require the following:
+
+Familiarity with AI Agents: A solid understanding of agentic architectures, multi-agent coordination, and Retrieval-Augmented Generation (RAG).
+Python proficiency: Intermediate experience with Python and Jupyter Notebooks, including calling Gemini Enterprise Agent Platform APIs.
+Gemini model knowledge: Familiarity with the Gemini 3 family and token-based pricing structures (Pro, Flash, and Flash-Lite tiers).
+Basic Cloud Storage concepts: General familiarity with Cloud Storage bucket objects and Gemini Enterprise Agent Platform Workbench instances.
+Setup and requirements
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Google Cloud resources are made available to you.
+
+This hands-on lab lets you do the lab activities in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials you use to sign in and access Google Cloud for the duration of the lab.
+
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Note: Use an Incognito (recommended) or private browser window to run this lab. This prevents conflicts between your personal account and the student account, which may cause extra charges incurred to your personal account.
+Time to complete the lab—remember, once you start, you cannot pause a lab.
+Note: Use only the student account for this lab. If you use a different Google Cloud account, you may incur charges to that account.
+How to start your lab and sign in to the Google Cloud console
+Click the Start Lab button. If you need to pay for the lab, a dialog opens for you to select your payment method. On the right is the Lab setup pane with the following:
+
+The Open Google Cloud console button
+The temporary credentials that you must use for this lab
+Other information, if needed, to step through this lab
+In the Lab Setup section, right-click Open Google Cloud console and select Open link in new window (or alternatively right-click and select Open Link in Incognito Window if you are running the Chrome browser).
+
+The lab spins up resources, and then opens another tab that shows the Sign in page.
+
+Tip: Arrange the tabs in separate windows, side-by-side.
+
+Note: If you see the Choose an account dialog, click Use Another Account.
+If necessary, copy the Username below and paste it into the Sign in dialog.
+
+"Username"
+Copied!
+You can also find the Username in the Lab Setup pane.
+
+Click Next.
+
+Copy the Password below and paste it into the Welcome dialog.
+
+"Password"
+Copied!
+You can also find the Password in the Lab Setup pane.
+
+Click Next.
+
+Important: You must use the credentials the lab provides you. Do not use your Google Cloud account credentials.
+Note: Using your own Google Cloud account for this lab may incur extra charges.
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the Google Cloud console opens in this tab.
+
+Note: To access Google Cloud products and services, click the Navigation menu or type the service or product name in the Search field. Navigation menu icon and Search field
+Scenario
+Your team has recently deployed a Code Assistant Agent built on the Agent Development Kit (ADK). When developers submit queries, a Coordinator orchestrates two specialized sub-agents: a DocsAgent (querying official documentation on managed Agent Search) and a CommunityAgent (querying past Stack Overflow discussions).
+
+While the assistant is highly accurate, operational costs are too high. A single query fans out into multiple coordinator turns, sub-agent invocations, document retrievals, and expensive reasoning tokens.
+
+As the Lead Generative AI Platform Engineer, you must audit the baseline query cost, apply a series of cost-reduction levers, and establish an optimized model configuration that drastically slashes the bill while maintaining the required answer quality floor.
+
+Your challenge
+Your final challenge is to configure the Code Assistant Agent's control knobs (MY_MODELS, MY_THINKING, and MY_TOPK) to successfully analyze a held-out dataset of 16 complex developer queries under the following production constraints:
+
+Cost budget: Average cost per query must be at or below $0.0135 USD (roughly half of the baseline cost).
+Quality floor: Average quality score must be at or above 0.90 (evaluated by a state-of-the-art LLM judge model).
+Architectural constraints:
+Coordinator tier: The Coordinator seat cannot use the budget gemini-3.1-flash-lite tier. Experiments show that this tier is too weak to handle complex orchestration, leading to broken formatting and bad synthesis. It must run on either Pro (gemini-3.1-pro-preview) or Flash (gemini-3.5-flash). Sub-agents are unrestricted.
+Embedding model: Must remain pinned to the appropriate embedding model (gemini-embedding-001).
+Completion verification: You must successfully run the final challenge evaluation cells, achieve a green PASS verdict, and ensure the final_metrics.json file is successfully compiled and uploaded to your designated Google Cloud Storage results bucket.
+Task 1. Open the JupyterLab on Agent Platform Workbench
+In this task, you open the managed JupyterLab environment where you run the lab notebook. The lab provisions an Agent Platform Workbench instance for you when it starts.
+
+In the Google Cloud Console, on the Navigation menu (Navigation menu), click Agent Platform > Notebooks > Workbench. Alternatively, you can type Agent Platform Workbench in the top search bar and click the first result.
+
+Find the generative-ai-jupyterlab instance and click Open JupyterLab.
+
+The JupyterLab interface for your Workbench instance opens in a new browser tab.
+
+Task 2. Get the lab files
+In this task, you confirm that the lab notebook and its supporting files are available in your JupyterLab home directory. The lab copies them there for you when the instance starts.
+
+Confirm the lab files are present
+In the JupyterLab File Browser on the left, look for the following files in your home directory:
+
+the code_assistant_cost_optimization.ipynb notebook
+the code_assistant folder (the plumbing package that the notebook imports)
+the assets folder (the retrieval corpora and evaluation datasets)
+If the files are present, continue to Task 3.
+
+Copy the lab files manually (only if they are missing)
+If the files are not in your home directory, copy them from the lab Cloud Storage bucket.
+
+In JupyterLab, click File > New > Terminal to open a terminal.
+
+To copy all of the lab files into your home directory, run the following command:
+
+gcloud storage cp -r "gs://qwiklabs-gcp-04-defacf1d0ff9-bucket/*" ~/
+Copied!
+In the File Browser, confirm that the notebook and the code_assistant and assets folders now appear in your home directory.
+
+Task 3. Run the lab notebook
+In this task, you complete the hands-on work inside the notebook. The notebook contains its own step-by-step instructions, code, and explanations. Run the cells in order from top to bottom, and let each cell finish before you start the next. The measured runs are the slow cells; the notebook states the expected duration next to each.
+
+Note: Several cells call billable services: Gemini models (including reasoning tokens), the Gen AI evaluation service's judge model, Agent Search queries, and embeddings. Some results are designed to surprise you: one model-tiering step intentionally shows high cost variability, and the final challenge stops with an AssertionError until you fill in your own configuration. That is the exercise, not a defect; the notebook explains the result to expect at each step.
+In the File Browser, double-click code_assistant_cost_optimization.ipynb to open it.
+If you are prompted to select a kernel, select the default Python 3 kernel.
+Run the install cell, then run the kernel-restart cell and wait for the kernel to come back.
+Follow the instructions in the notebook to measure the agent's baseline cost, apply the three optimization levers, and complete the graded final challenge, which is required to complete the lab.
+Task 4. Provision the Agent Search resources
+In this task, you provision the managed Agent Search (Agent Search on Gemini Enterprise Agent Platform) data store and search engine. The lab notebook automates this provisioning process programmatically using the Google Cloud SDK inside the JupyterLab environment.
+
+Run the notebook cells under Part 0: Setup, the cost model, and the ledger and its subtask, Provision retrieval and assemble the agent.
+The code_assistant-docs data store and code_assistant-docs-engine search engine are provisioned using the following docs_sc variable:
+DOCS_SC = vais.ensure(PROJECT, VAIS_LOCATION, DS_ID, ENGINE_ID, load_jsonl("assets/docs.jsonl"))
+Copied!
+This function connects to the Discovery Engine API to provision the following:
+
+Data Store ID: code_assistant-docs
+Search Engine ID: code_assistant-docs-engine
+Click Check my progress to verify the objective.
+AT ID: 1 Provision the Agent Search resources
+
+Task 5. Optimize the Code Assistant Agent's cost and quality
+In this task, you put your skills to the test. Your team has established a cost budget of $0.0135 per query and an answer quality floor of 0.90.
+
+You must complete all the TODO sections under [TODO: YOUR OPTIMIZATION (fill in every TODO below; the assert stops the cell until you do)] in Part 6: Final challenge of the notebook to find an optimized agent configuration that satisfies both criteria simultaneously on the held-out dataset, and submit your final_metrics.json file for grading.
+
+Click Check my progress to verify the objective.
+AT ID: 2 Optimize the Code Assistant Agent's cost and quality
