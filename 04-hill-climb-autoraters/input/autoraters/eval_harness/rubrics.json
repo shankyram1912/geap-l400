@@ -1,0 +1,230 @@
+[
+  {
+    "criterion_id": "general-tone",
+    "name": "General Tone Suitability",
+    "criterion": "Evaluates whether the general tone of the report is good and suited for real estate.",
+    "rating_scale": {
+      "1": "Tone is completely unsuited for real estate.",
+      "2": "Tone is sub-par.",
+      "3": "Tone is okay and acceptable.",
+      "4": "Tone is good and appropriate.",
+      "5": "Tone is perfect and exactly suited."
+    }
+  },
+  {
+    "criterion_id": "data-density",
+    "name": "Information and Data Density",
+    "criterion": "Evaluates if the report contains a lot of numbers and facts.",
+    "rating_scale": {
+      "1": "Barely any numbers.",
+      "2": "Very few numbers.",
+      "3": "Some numbers.",
+      "4": "Plenty of numbers.",
+      "5": "Packed with numbers and data points."
+    }
+  },
+  {
+    "criterion_id": "core-specifications",
+    "name": "Explicit Plot Core Specifications",
+    "criterion": "Explicitly states the exact plot_id, acreage, and zoning designation in the body of the report.",
+    "rating_scale": {
+      "1": "One or more core metrics (plot_id, acreage, zoning) are missing or incorrect.",
+      "2": "States at least two core metrics, but one is missing, inaccurate, or buried without emphasis.",
+      "3": "States all core metrics but buries them inside unstructured paragraphs.",
+      "4": "States all core metrics accurately and clearly in the text, though not consolidated in a summary table.",
+      "5": "Prominently and accurately displays exact plot_id, acreage, and zoning in summary tables and text."
+    }
+  },
+  {
+    "criterion_id": "utility-topography",
+    "name": "Utility & Topography Evaluation",
+    "criterion": "Evaluates the specific utility access data (sewer/water distances) and topography grade, analyzing site preparation expenses.",
+    "rating_scale": {
+      "1": "Utility access or topography grade is not evaluated.",
+      "2": "Mentions either utility access or topography briefly, omitting one entirely.",
+      "3": "States utility and topography metrics without connecting them to site engineering feasibility.",
+      "4": "Analyzes both utility access and grade slope, connecting them to general site preparation feasibility.",
+      "5": "Thoroughly analyzes grade slope and utility connection distances to estimate site preparation CapEx."
+    }
+  },
+  {
+    "criterion_id": "cost-per-acre",
+    "name": "Acquisition Cost-Per-Acre Calculation",
+    "criterion": "Derives and states the exact mathematical acquisition cost-per-acre based on the last sale price and acreage.",
+    "rating_scale": {
+      "1": "Cost-per-acre calculation is entirely omitted or mathematically incorrect.",
+      "2": "Alludes to land cost relative to size, but does not provide a numerical figure or formula.",
+      "3": "Mentions cost-per-acre roughly or without explicit derivation formula.",
+      "4": "Correctly computes cost-per-acre with clear derivation, but does not benchmark or emphasize it as a core valuation metric.",
+      "5": "Accurately calculates and highlights exact cost-per-acre as a core valuation metric."
+    }
+  },
+  {
+    "criterion_id": "analyst-insight",
+    "name": "Deep Analyst Insights",
+    "criterion": "Evaluates if the report contains deep, smart, and insightful comments about the data.",
+    "rating_scale": {
+      "1": "The report contains zero insights, just plain copying of data.",
+      "2": "The report has very shallow insights.",
+      "3": "The report has average insights.",
+      "4": "The report contains good, deep insights.",
+      "5": "The report has brilliant and outstanding insights."
+    }
+  },
+  {
+    "criterion_id": "vocabulary-choice",
+    "name": "Advanced Real Estate Vocabulary",
+    "criterion": "Checks if the report uses advanced and fancy real estate terminology.",
+    "rating_scale": {
+      "1": "Uses simple, non-industry words.",
+      "2": "Uses very few industry terms.",
+      "3": "Uses basic real estate terms.",
+      "4": "Uses advanced real estate terms.",
+      "5": "Uses fancy and highly advanced industry jargon throughout."
+    }
+  },
+  {
+    "criterion_id": "monthly-tax-holding",
+    "name": "Monthly Tax Holding Cost Calculation",
+    "criterion": "Calculates and explicitly states the monthly tax holding cost (annual taxes divided by 12) during pre-development carrying phases.",
+    "rating_scale": {
+      "1": "Monthly tax carrying costs are not calculated or discussed.",
+      "2": "Mentions annual taxes and notes they are an expense, but does not calculate monthly holding figures.",
+      "3": "Mentions annual taxes but leaves monthly holding rate implicit.",
+      "4": "Correctly calculates the monthly holding tax figure ($/month), with brief mention of carrying impact.",
+      "5": "Explicitly computes monthly holding taxes and highlights carrying cost implications for pre-construction budgeting."
+    }
+  },
+  {
+    "criterion_id": "professionalism",
+    "name": "Analyst Professionalism",
+    "criterion": "Measures if the writer sounds like a professional real estate analyst.",
+    "rating_scale": {
+      "1": "Unprofessional tone.",
+      "2": "Slightly unprofessional.",
+      "3": "Moderately professional.",
+      "4": "Very professional.",
+      "5": "Outstandingly professional."
+    }
+  },
+  {
+    "criterion_id": "readability",
+    "name": "General Reading Ease",
+    "criterion": "Measures how easy the report is to read for a busy executive.",
+    "rating_scale": {
+      "1": "Extremely hard to read and understand.",
+      "2": "Hard to follow in several places.",
+      "3": "Average reading ease.",
+      "4": "Easy to read.",
+      "5": "Effortless to read and digest."
+    }
+  },
+  {
+    "criterion_id": "environmental-esa",
+    "name": "Environmental Status (Phase I ESA) Evaluation",
+    "criterion": "Evaluates the environmental status (Phase I ESA clean vs. REC flagged) and prescribes necessary environmental due diligence steps.",
+    "rating_scale": {
+      "1": "Phase I ESA status is ignored.",
+      "2": "Mentions environmental status superficially without noting exact Phase I ESA terminology or findings.",
+      "3": "Notes whether Phase I is clean or flagged without discussing Phase II testing or remediation risks.",
+      "4": "Accurately reports Phase I ESA status and notes whether further environmental testing is required.",
+      "5": "Critically evaluates Phase I findings and defines exact next steps for environmental due diligence."
+    }
+  },
+  {
+    "criterion_id": "logical-flow",
+    "name": "Logical Narrative Flow",
+    "criterion": "The narrative flows logically from executive summary to property details, risk evaluation, and final recommendation.",
+    "rating_scale": {
+      "1": "Disorganized structure with disjointed sections or missing clear transitions.",
+      "2": "Attempted organization, but major narrative gaps or abrupt section jumps disrupt comprehension.",
+      "3": "Standard logical flow but some sections feel disconnected or repetitious.",
+      "4": "Clear progression from summary to recommendation, with only minor transition smoothness improvements needed.",
+      "5": "Seamless, highly organized progression that builds a clear investment thesis step-by-step."
+    }
+  },
+  {
+    "criterion_id": "report-length",
+    "name": "Report Detail and Length",
+    "criterion": "Assesses if the report has enough detail and words to look complete.",
+    "rating_scale": {
+      "1": "The report is way too short.",
+      "2": "The report seems a bit short.",
+      "3": "The report has average length.",
+      "4": "The report is quite long.",
+      "5": "The report is very long and detailed."
+    }
+  },
+  {
+    "criterion_id": "risk-assessment",
+    "name": "Comprehensive Risk Assessment",
+    "criterion": "The assessment of development risks is comprehensive, identifying physical, environmental, tax, and regulatory hurdles.",
+    "rating_scale": {
+      "1": "Risks are omitted or treated superficially.",
+      "2": "Mentions at least one risk factor, but provides no analysis or practical context.",
+      "3": "Identifies multiple risks but lacks depth on implications or mitigation strategies.",
+      "4": "Analyzes core physical, environmental, or financial risks and suggests general mitigation ideas.",
+      "5": "Exhaustive evaluation of site-specific constraints with actionable risk mitigation steps."
+    }
+  },
+  {
+    "criterion_id": "persuasiveness",
+    "name": "Document Persuasiveness",
+    "criterion": "Evaluates how persuasive and convincing the report's recommendation is.",
+    "rating_scale": {
+      "1": "The recommendation is completely unconvincing.",
+      "2": "The recommendation is weak.",
+      "3": "The recommendation is average.",
+      "4": "The recommendation is persuasive.",
+      "5": "The recommendation is incredibly convincing and leaves zero doubt."
+    }
+  },
+  {
+    "criterion_id": "flood-zone-flagging",
+    "name": "Precise Flood Zone Flagging",
+    "criterion": "Explicitly flags the precise flood zone designation (e.g., Zone AE, Zone X, Zone VE) and explains its insurance/construction impacts.",
+    "rating_scale": {
+      "1": "Flood zone designation is omitted or misreported.",
+      "2": "Notes flood zone generally (e.g., \"in a flood zone\"), without specific FEMA zone classification or impact.",
+      "3": "States the flood zone but does not explain vertical construction or insurance implications.",
+      "4": "Identifies exact flood zone and notes general insurance/building impacts, lacking detailed structural specifics (e.g., BFE, fill dirt).",
+      "5": "Clearly identifies exact flood zone and details specific construction requirements (fill dirt, pilings) and insurance costs."
+    }
+  },
+  {
+    "criterion_id": "neighboring-flood-risk",
+    "name": "Neighboring Property Flood Risk Analysis",
+    "criterion": "The flood risk analysis evaluates not only the subject parcel's flood zone, but explicitly investigates and discusses the flood zone designations and hydrological risks of neighboring or adjacent properties.",
+    "rating_scale": {
+      "1": "Omits all mention of neighboring or adjacent property flood risks and hydrological conditions.",
+      "2": "Mentions the existence of adjacent properties in the context of location, but does not investigate or report their flood zone designations or hydrological risks.",
+      "3": "Notes whether adjacent properties are in a flood zone generally, but lacks specific FEMA zone classifications or comparative hydrological analysis.",
+      "4": "Reports the specific FEMA flood zone classifications of neighboring properties, but offers limited analysis on how their drainage or runoff impacts the subject lot.",
+      "5": "Exhaustively investigates neighboring property flood zones and critically analyzes potential drainage, runoff, and shared hydrological impacts on the subject parcel's development feasibility."
+    }
+  },
+  {
+    "criterion_id": "professional-tone",
+    "name": "Professional Tone",
+    "criterion": "The tone is sufficiently professional and objective for an investment committee presentation.",
+    "rating_scale": {
+      "1": "Informal, casual, or overly subjective language used.",
+      "2": "Predominantly informal with occasional professional phrasing, but lacks objective rigor.",
+      "3": "Generally professional but contains minor stylistic lapses or conversational phrasing.",
+      "4": "Mostly formal and objective, with very rare minor stylistic inconsistencies.",
+      "5": "Highly formal, rigorous, and objective tone suitable for executive decision-making."
+    }
+  },
+  {
+    "criterion_id": "document-formatting",
+    "name": "Document Readability & Formatting",
+    "criterion": "The formatting makes the document highly readable, utilizing markdown headers, bullet points, and data tables where appropriate.",
+    "rating_scale": {
+      "1": "Dense walls of text with poor spacing and formatting.",
+      "2": "Minimal formatting applied (e.g., basic paragraphs or random bullets), but hard to read quickly.",
+      "3": "Uses headers and bullets appropriately but visual scannability could be improved.",
+      "4": "Well-structured with clear headers and bullet lists, but lacks tabular data presentation or visual contrast.",
+      "5": "Exceptional presentation using clean tables, bold highlights, and clear section hierarchy."
+    }
+  }
+]

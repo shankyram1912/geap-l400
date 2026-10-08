@@ -1,0 +1,360 @@
+https://explore.qwiklabs.com/classrooms/21327/labs/115215
+
+[FDE] Hillclimbing with Autoraters: Challenge Lab
+schedule
+2 hours
+universal_currency_alt
+7 Credits
+info
+This lab may incorporate AI tools to support your learning.
+L400-APEX006
+Lab Information
+
+Lab Manual Last Updated Date	October 07, 2026
+Last Tested Date and Time	October 07, 2026, 06:26:07
+Completion in Last 24 Hours	65
+Overview
+In this challenge lab, you are tasked with evaluating and hill climbing a Generative AI agent using autoraters. Building real-world AI agents requires rigorous, scalable evaluation to ensure consistent and reliable outputs. You run evaluation pipelines using the Gen AI evaluation service on Gemini Enterprise Agent Platform, analyze autorater self-consistency, and iteratively hill climb the agent's output quality until it passes the autoraters.
+
+Objectives
+In this challenge lab, you demonstrate your ability to do the following:
+
+Interpret and apply inter-/intra-rater reliability metrics.
+Distinguish between useful metrics and distractors for assessing autorater self-consistency.
+Utilize the outputs of autoraters to assess agent performance.
+Navigate ADK's built-in tools to diagnose agent malfunctions.
+Improve agent skills based on evaluation feedback.
+Setup and requirements
+Before you click the Start Lab button
+Read these instructions. Labs are timed and you cannot pause them. The timer, which starts when you click Start Lab, shows how long Google Cloud resources are made available to you.
+
+This hands-on lab lets you do the lab activities in a real cloud environment, not in a simulation or demo environment. It does so by giving you new, temporary credentials you use to sign in and access Google Cloud for the duration of the lab.
+
+To complete this lab, you need:
+
+Access to a standard internet browser (Chrome browser recommended).
+Note: Use an Incognito (recommended) or private browser window to run this lab. This prevents conflicts between your personal account and the student account, which may cause extra charges incurred to your personal account.
+Time to complete the lab—remember, once you start, you cannot pause a lab.
+Note: Use only the student account for this lab. If you use a different Google Cloud account, you may incur charges to that account.
+How to start your lab and sign in to the Google Cloud console
+Click the Start Lab button. If you need to pay for the lab, a dialog opens for you to select your payment method. On the right is the Lab setup pane with the following:
+
+The Open Google Cloud console button
+The temporary credentials that you must use for this lab
+Other information, if needed, to step through this lab
+In the Lab Setup section, right-click Open Google Cloud console and select Open link in new window (or alternatively right-click and select Open Link in Incognito Window if you are running the Chrome browser).
+
+The lab spins up resources, and then opens another tab that shows the Sign in page.
+
+Tip: Arrange the tabs in separate windows, side-by-side.
+
+Note: If you see the Choose an account dialog, click Use Another Account.
+If necessary, copy the Username below and paste it into the Sign in dialog.
+
+"Username"
+Copied!
+You can also find the Username in the Lab Setup pane.
+
+Click Next.
+
+Copy the Password below and paste it into the Welcome dialog.
+
+"Password"
+Copied!
+You can also find the Password in the Lab Setup pane.
+
+Click Next.
+
+Important: You must use the credentials the lab provides you. Do not use your Google Cloud account credentials.
+Note: Using your own Google Cloud account for this lab may incur extra charges.
+Click through the subsequent pages:
+
+Accept the terms and conditions.
+Do not add recovery options or two-factor authentication (because this is a temporary account).
+Do not sign up for free trials.
+After a few moments, the Google Cloud console opens in this tab.
+
+Note: To access Google Cloud products and services, click the Navigation menu or type the service or product name in the Search field. Navigation menu icon and Search field
+Scenario
+You are rapidly prototyping a Gen AI agent that creates real estate investment opportunity reports on the development potential of vacant lots. You are working with a team of real estate analysts who have helped you ideate some rubric criteria to evaluate the reports, but they have not provided the labels necessary to perform human/LLM judge agreement studies. Because you are working at speed, you are performing consistency studies on the criteria to determine what criteria might be suitable for autorating. You plan to do a few hill climbing iterations, as needed, based on the rubric criteria that might be reliable.
+
+You prototyped the agent with Agent Development Kit (ADK) and powered it with Gemini, tools you are very familiar with, so you can work efficiently. The design of the agent is intentionally unsophisticated—it primarily is based on skills that an analyst helped you quickly draft to help you get started.
+
+Your challenge
+You must accomplish the following phases of agent evaluation and hill climbing:
+
+Generate agent responses: Execute the re_analyst agent across a batch of target property IDs to generate a baseline dataset of investment reports.
+
+Evaluate with LLM-as-a-Judge: Use the Gen AI evaluation service on Gemini Enterprise Agent Platform to score the agent's reports against a predefined rubric.
+
+Analyze evaluation consistency: Because LLM judges can be inconsistent, you must run multi-pass evaluations (k-passes) and analyze the consistency of ratings using inter-/intra-rater reliability metrics to identify which rubric criteria are potentially reliable.
+
+Improve autorater scores via hill climbing: Iteratively refine the agent's skills until it achieves a target mean evaluation score of above 4.0 on the target criteria.
+
+Task 1. Set up your environment
+Note: Using an Incognito browser window is recommended to avoid confusion between your Student account and other accounts logged into Google Cloud. If you are using Chrome, the easiest way to accomplish this is to close any Incognito windows, then right-click on the Open Google Cloud console button in the Lab setup and access panel, and select Open link in Incognito window.
+In this task, you launch Cloud Shell, start the browser editor environment, download the codebase package, and install ADK dependencies.
+
+Prepare a Cloud Shell Editor tab
+With your Google Cloud console window selected, open Cloud Shell by pressing the G key and then the S key on your keyboard. Alternatively, you can click the Activate Cloud Shell Activate Cloud Shell button in the upper right of the Cloud console.
+Click Continue.
+When prompted to authorize Cloud Shell, click Authorize.
+In the upper right corner of the Cloud Shell Terminal panel, click the Open in new window Open in new window button icon to view files.
+Click the Open Editor Open Editor pencil icon icon at the top of the pane to view files.
+At the top of the left-hand navigation menu, click the Explorer Explorer icon icon to open your file explorer.
+Click the Open Folder button.
+In the Open Folder dialog that opens, click OK to select your Student account's home folder.
+Close any additional tutorial or Gemini panels that appear on the right side of the screen to save more of your window for your code editor.
+Throughout the rest of this lab, you can work in this window as your IDE along with the Cloud Shell Editor and Cloud Shell Terminal.
+Download and install dependencies
+Note: You may see errors like Regional Access Boundary HTTP request failed after retries: response_data={'error': {'code': 404, 'message': 'Not found; Gaia id not found for email student-XX-XXXXXXXXXXXX@qwiklabs.net', 'status': 'NOT_FOUND'}}, retryable_error=False when running commands in Cloud Shell that access Google Cloud resources. This should have no impact on the lab. If it does, re-running gcloud auth application-default login should stop the error.
+Authenticate your Cloud Shell environment using the following command:
+
+gcloud auth application-default login
+Copied!
+When prompted, type Y, and press ENTER.
+
+Click on the URL provided to open a new browser window that displays a verification code.
+
+When you're prompted to continue, click Continue, and click Allow.
+
+Copy the verification code shown in the browser.
+
+Back in the Cloud Shell terminal, where it says enter the verification code provided in your browser, paste the copied verification code, and press ENTER.
+
+Paste the following commands in the Cloud Shell Terminal to download code for this lab from a Cloud Storage bucket:
+
+gcloud storage cp -r gs://qwiklabs-gcp-01-282bb1a3e420-bucket/autoraters .
+Copied!
+Download the lab code, install Python 3.13, update your PATH environment variable, and install additional lab requirements including ADK by running the following commands in the Cloud Shell Terminal:
+
+sudo apt-get update
+sudo apt-get install -y libreadline-dev
+Copied!
+curl https://pyenv.run | bash
+Copied!
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+source ~/.bashrc
+Copied!
+pyenv install 3.13
+Copied!
+Note: It might take 5 to 10 minutes to install Python.
+pyenv global 3.13
+Copied!
+python3 -m pip install -r autoraters/requirements.txt
+Copied!
+Note: If your Cloud Shell session gets disconnected, it reverts to Python 3.12 if you re-open it. To reactivate Python 3.13, run source ~/.bashrc; pyenv global 3.13.
+In the Cloud Shell Terminal, run the following to create a .env file to authenticate the agent in the autoraters directory.
+
+cd ~/autoraters
+cat << EOF > .env
+GOOGLE_GENAI_USE_VERTEXAI=TRUE
+GOOGLE_CLOUD_PROJECT=qwiklabs-gcp-01-282bb1a3e420
+GOOGLE_CLOUD_LOCATION=global
+MODEL=gemini-3.5-flash
+EOF
+Copied!
+In the Cloud Shell Terminal, set your Google Cloud project for the current session using the following command:
+
+gcloud config set project qwiklabs-gcp-01-282bb1a3e420
+Copied!
+Task 2. Run, test, and understand the agent
+In the Cloud Shell Terminal, start the ADK web interface (you should be in the autoraters directory) using the following command:
+
+adk web --allow_origins "regex:https://.*\.cloudshell\.dev"
+Copied!
+Output:
+
+INFO:     Started server process [2434]
+INFO:     Waiting for application startup.
++-------------------------------------------------------+
+| ADK Web Server started                                |
+|                                                       |
+| For local testing, access at http://localhost:8000.   |
++-------------------------------------------------------+
+
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit) 
+To view the web interface in a new tab, click the http://127.0.0.1:8000 link in the Terminal output. A new browser tab opens with the ADK Dev UI.
+
+From the Select an app dropdown, make sure re_analyst is selected.
+
+In the chat prompt input, test the agent by entering the following:
+
+Please evaluate investment suitability for lot LOT-8472 and generate a report.
+Copied!
+Visualizing the execution: Watch as the agent lists its skills, loads them, invokes tools, receives responses, and returns the evaluation report in real-time.
+
+Read the output report so you understand the task of this agent. The reports do not vary considerably, at this point you do not need to look at more than one.
+
+Explore the re_analyst directory and its subdirectories to understand how the agent is built. Note that the agent tools read data from the autoraters/tools_data directory. You don't need to explore the other subdirectories under autoraters at this point.
+
+Task 3. Generate agent responses
+In this task, you create an evaluation dataset by executing the real estate investment opportunity analysis agent across target vacant lot IDs. Evaluation harness code provided with the lab automates this for you.
+
+Open a new Cloud Shell terminal, navigate to the autoraters directory, set the Python version to 3.13, and ensure your environment is activated by running the following commands:
+
+cd ~/autoraters
+source ~/.bashrc
+pyenv global 3.13
+gcloud config set project qwiklabs-gcp-01-282bb1a3e420
+Copied!
+Run the evaluation dataset builder. This script reads target property Lot IDs from eval_harness/hillclimb_lots.txt, executes the re_analyst agent across all 10 properties to record agent telemetry, and saves the fully populated evaluation dataset to ./re_analyst/hillclimb_lots.evalset.json:
+
+python3 -m eval_harness.create_re_agent_evalset --lots-file eval_harness/hillclimb_lots.txt --out ./re_analyst/hillclimb_lots.evalset.json --agent-dir ./re_analyst
+Copied!
+In your open ADK Web UI tab (http://127.0.0.1:8000), select re_analyst from the top-left dropdown, click Eval History (or History), click the refresh button, and select hillclimb_lots to explore the step-by-step tool invocations and generated evaluation reports.
+
+Note: If Gemini capacity is limited not all agent executions will complete, but you can still proceed with the lab as long as a few reports were successfully generated.
+Task 4. Evaluate the agent responses with LLM-as-a-Judge
+In this task, you use the Gen AI evaluation service on Gemini Enterprise Agent Platform to evaluate the quality of the generated real estate investment opportunity analysis reports.
+
+You run an evaluation runner script (run_geap_eval.py) that evaluates your agent's generated reports against the rubric defined in eval_harness/rubrics.json using Gemini as a judge. The script calls the Gen AI evaluation service k times to collect multiple scores and explanations for each report, which helps analyze the consistency of the LLM judge.
+
+Step 1: Perform a dry run to inspect the evaluator prompts
+Before making live API calls to Gemini Enterprise Agent Platform, run the script in dry-run mode. This parses your criteria and reports, assembles the exact prompts sent to the LLM judge, and saves everything locally without invoking the cloud APIs.
+
+Run the following command in your terminal:
+
+python3 -m eval_harness.run_geap_eval \
+  --traces re_analyst/hillclimb_lots.evalset.json \
+  --rubric-file eval_harness/rubrics.json \
+  --out runs/baseline/geap_calls_and_responses.json \
+  --experiment-name rubric-agreement-check \
+  --dry-run \
+  --k 3
+Copied!
+Inspect the generated file runs/baseline/geap_calls_and_responses.json to see the following:
+
+prompt_made_to_service—The fully rendered prompt containing the instructions, evaluation criteria, rating scale, and the agent's report.
+is_dry_run—A boolean flag set to true, indicating that this record is a dry run and does not contain live responses.
+Step 2: Execute live cloud evaluations
+Now, run the script without the --dry-run flag to dispatch the evaluation requests to the Gen AI evaluation service. You run 3 passes (--k 3) for each case to gather multiple ratings per report.
+
+Execute the live evaluation runner using the following command:
+
+python3 -m eval_harness.run_geap_eval \
+  --traces re_analyst/hillclimb_lots.evalset.json \
+  --rubric-file eval_harness/rubrics.json \
+  --out runs/baseline/geap_calls_and_responses.json \
+  --experiment-name rubric-agreement-check \
+  --k 3
+Copied!
+Note: This makes real API calls to the Gen AI evaluation service on Agent Platform using the Google Cloud SDK. If you run into timeouts, 429 errors, or other capacity-related errors you can still proceed with the lab. Subsequent tasks do not depend on the result of this task, beyond the inspection of the results in the remaining steps of this task.
+The Gen AI evaluation service uses majority voting of four votes when scoring rubrics. When doing agreement analysis later this is important to remember, since it artificially inflates agreement metrics.
+
+Once completed, inspect runs/baseline/geap_calls_and_responses.json. Under responses_from_service for each record, you should see the live model-based evaluation scores and detailed textual explanations returned by the Gemini judge model.
+
+In Gemini Enterprise Agent Platform Experiments in the Cloud console, open the experiment, then open the individual runs to view the metrics for the different rubric criteria.
+
+Task 5. Analyze autorater intra-rater reliability
+The evaluation you just ran was intentionally small, too small for meaningful autorater intra-rater reliability analysis. Rather than force you to run a large enough job and wait a long time, the results of a larger run have already been created in the file runs/geap_calls_and_responses_for_analysis.json. This is 32 lot IDs graded on 19 criteria across 15 repeated evaluation passes.
+
+In this task, you use this data to analyze the rubric and determine which criteria are not being used consistently by the autoraters.
+
+Step 1: Perform a deep-dive into an individual criterion's autorater scores
+Use the single_criterion_analysis.py tool to view the detailed score matrix of lot IDs (N) vs. evaluation passes (k) for a single criterion:
+
+cd ~/autoraters
+python3 -m eval_harness.single_criterion_analysis \
+  --run_geap_eval_out runs/geap_calls_and_responses_for_analysis.json \
+  --criterion environmental-esa
+Copied!
+Tip: If you are having problems with analysis Python scripts that print tabular output to the terminal, remember that you can pipe the output of any terminal command to a text file by adding > outputfile.txt at the end of the command. You can then open the text file in the Cloud Shell Editor.
+Step 2: Review metrics for one criterion
+The single_criterion_analysis.py tool provides the following metrics about criterion autorater quality. Be careful: some metrics are distractors and do not provide useful info for analyzing autorater quality!
+
+Table metrics summary
+Mean Rating (mean): The average of all scores (all passes, all lot IDs).
+Min All Ratings (min Rating): The lowest score assigned by any judge pass on any Lot ID.
+Max All Ratings (Max Rating): The highest score assigned by any judge pass on any Lot ID.
+Widest Range Single Report (Max Range Report): The largest score difference (Max - Min) observed for a single lot ID's report across the evaluation passes. It also highlights the specific Lot ID. A large range (e.g., 2 or 3) shows severe disagreement between the eval passes on that lot ID's report.
+Widest Range Single Pass (Max Range Pass): The largest score difference (Max - Min) observed for a single eval pass across the reports for all Lot IDs.
+StdDev of Report Means (SD Report Means): Take the mean score for each lot ID's report across the k evaluation passes. Then, calculate the standard deviation of these means. This indicates how much the perceived quality of reports varied.
+StdDev of Pass Means (SD Pass Means): Take the mean score of each evaluation pass (across all the Lot ID reports). Then calculate the standard deviation of these means.
+Mean Pairwise Percent Agreement of Report Ratings (Mean Pairwise Agree): The average pairwise percent agreement of all reports. For a single report, pairwise percent agreement measures the percentage of rater pairs that gave the exact same score out of all possible rater pairs.
+Krippendorff's Alpha (Alpha): A global reliability coefficient measuring agreement collectively across all reports and passes.
+Margins of the grades matrix:
+Right margin columns (min, max, range, mean, std, %_pw_ag) allow you to inspect the scoring variance and agreement for each report. %_pw_ag is percent pairwise agreement: if all pairs of ratings (ignoring missing ratings) are compared, this is the percentage of paired ratings that are identical.
+Bottom margin rows (pass mean, pass std, pass min, pass max, pass range) let you check the behavior of each evaluation pass.
+Step 3: View metrics for all criteria
+To help speed up your analysis, use all_criteria_analysis.py to view the top table metrics from single_criterion_analysis.py across all 19 criteria simultaneously.
+
+Run the following command:
+
+cd ~/autoraters
+python3 -m eval_harness.all_criteria_analysis \
+  --run_geap_eval_out runs/geap_calls_and_responses_for_analysis.json
+Copied!
+Step 4: Choose reliable autorater criteria
+Use single_criterion_analysis.py and all_criteria_analysis.py to identify which autorater criteria show the best intra-rater agreement.
+
+Open the file best_criteria_submission.txt in the Cloud Shell editor, and write the criterion-ids of 3 criteria you think show the best intra-rater reliability. The criterion_ids are listed in the first column (criterion_id) of the output of all_criteria_analysis.py, for example analyst-insight.
+
+Separate the criterion-ids by commas. For example, if the criteria with criterion_ids "general-tone", "data-density", and "analyst-insight" turn out to be the best to use, best_criteria_submission.txt should look like this:
+general-tone,data-density,analyst-insight
+Copied!
+Next, upload that file to Cloud Storage with the following command. When the upload is complete, check if you chose good criteria. There are more than 3 criteria that are potentially okay to use, but you only need to choose 3:
+gcloud storage cp best_criteria_submission.txt gs://qwiklabs-gcp-01-282bb1a3e420-bucket/best_criteria_submission.txt
+Copied!
+Tip: Remember, not all of the metrics are useful for assessing autorater criterion reliability.
+Tip: Watch out for the homogeneity trap.
+Tip: Remember, the backend majority vote of 4 means agreement metrics are slightly inflated, meaning the general guidelines for interpreting alpha might be a bit lenient. Be conservative in what you consider acceptable agreement.
+Click Check my progress to verify the objective.
+AT ID: 1 Choose reliable criteria
+
+Task 6. Hill climb agent skills to raise autorater criteria scores
+Now that you have identified some autorater criteria which might be suitable to use, your next task is to modify the agent to improve its performance.
+
+The only properties you want to optimize and evaluate during this phase are listed in eval_harness/hillclimb_lots.txt.
+
+While you wish you could perform human agreement analysis first with the criteria that show high intra-rater agreement across multiple autorater runs, the tight deadline for this prototype means you do not have time.
+
+Step 1: First hill climbing run
+To speed up hill climbing iteration cycles, an automated script run_hillclimb.py is provided. This script executes your active agent in the re_analyst directory across the target lots, dispatches a single-pass (k=1) evaluation call to the Gen AI evaluation service, and calculates the mean score for two target criteria:
+
+cost-per-acre (Acquisition Cost-Per-Acre Calculation)
+neighboring-flood-risk (Neighboring Property Flood Risk Analysis)
+While you have concerns about the questionable intra-rater agreement you saw in the earlier analysis for one of these metrics, your project sponsors are adamant that the problem this criterion detects must be fixed. Thankfully, the agreement was moderate. You'll be sure to note your concern in your final report.
+
+Run the script now to see the scores of your current agent:
+cd ~/autoraters
+python3 -m eval_harness.run_hillclimb
+Copied!
+Each run of the script automatically increments and saves the agent traces to a versioned file at re_analyst/hillclimb_X.evalset.json and the results of the Gen AI evaluation service to a versioned folder under runs/hillclimb_X/.
+
+Note: You may see warnings about skipping cases for evaluation if some Gemini calls time out. It's not a problem if some of the cases don't complete, and the code will proceed to evaluate the cases that do complete.
+Step 2: Analyze the hill climbing results
+When the hill climbing run is complete, the mean score for each of the autorated criteria prints to the terminal. They should be well below the target means of above 4.0.
+
+Inspect the Gemini judge's detailed grading rationales using the explain_criteria_results.py tool:
+cd ~/autoraters
+python3 -m eval_harness.explain_criteria_results \
+   --run_geap_eval_out runs/hillclimb_1/geap_calls_and_responses_hillclimb_1.json \
+   --criterion cost-per-acre \
+   --max_score_to_show 4.0
+Copied!
+As you hillclimb, change --criterion to examine explanations for another criterion and --run_geap_eval_out to view the results of future eval runs by incrementing the number at the end of the filename.
+
+--max_score_to_show only shows explanations for Lot IDs with scores equal to or below this value. The --max_score_to_show default of 4.0 means Lot IDs where the report scored 5 do not have their explanation printed.
+
+You need to look at three sources of information to understand your agent's deficiencies:
+
+The output of explain_criteria_results.py.
+The criterion definitions in eval_harness/rubrics.json.
+The agent runs in the evalsets, which you can view in adk web in the /autoraters/re_analyst space.
+Use this tool, along with viewing the description of the criteria in eval_harness/rubrics.json to understand where your agent is deficient.
+
+Step 3: Improve the agent and iterate
+Modify the re_analyst's skills. When you think you have improved them, run python3 -m eval_harness.run_hillclimb again. Repeat until your mean score on both criteria is above 4.0.
+
+Important: The Check my progress button below only checks the last evaluation run. As soon as both scores are above 4.0 in one run, make sure to click the button. Otherwise, if you keep experimenting for fun and accidentally go below 4.0, you may not get credit for prior improvements.
+Note: If Gemini capacity issues are slowing you down, you can set the agent to run using gemini-3.1-flash-lite by changing .env. It is still possible to complete this lab with an agent that runs with flash-lite.
+Click Check my progress to verify the objective.
+AT ID: 2 Perform hill-climbing automation
+
+If you have time remaining in the lab, the lab authors recommend that you review the code in run_geap_eval.py to enhance your learning. This code extracts responses from ADK traces and packages them up with custom rubrics in rubrics.json for evaluation in the Gen AI evaluation service on Gemini Enterprise Agent Platform.
+
+

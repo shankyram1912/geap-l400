@@ -1,0 +1,5 @@
+google-adk==2.4.0
+pandas==3.0.3
+google-cloud-aiplatform[evaluation]==1.160.0
+tabulate==0.10.0
+krippendorff-aleph-alpha==0.1.17
